@@ -1,0 +1,177 @@
+{
+  "name": "WF-01 PNCP Sync",
+  "nodes": [
+    {
+      "id": "a1b2c3d4-0001-0001-0001-000000000001",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [240, 300],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0001-0001-0001-000000000002",
+      "name": "Fetch PNCP Publications",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [460, 300],
+      "parameters": {
+        "method": "GET",
+        "url": "https://pncp.gov.br/api/pncp/v1/contratacoes/publicacao",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "dataInicial",
+              "value": "={{ $now.minus(1, 'hour').format('yyyy-MM-dd') }}"
+            },
+            {
+              "name": "dataFinal",
+              "value": "={{ $now.format('yyyy-MM-dd') }}"
+            },
+            {
+              "name": "pagina",
+              "value": "1"
+            },
+            {
+              "name": "tamanhoPagina",
+              "value": "50"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "fullResponse": false
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0001-0001-0001-000000000003",
+      "name": "Transform to Bidding Schema",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 300],
+      "parameters": {
+        "jsCode": "// NOTE: portalId must be set via a DB lookup for the PNCP portal record.\n// Replace 'PNCP_PORTAL_ID_PLACEHOLDER' with the actual portal ID from your DB,\n// or add a Postgres node before this step to query: SELECT id FROM \"Portal\" WHERE type = 'PNCP' LIMIT 1\nconst PNCP_PORTAL_ID = 'PNCP_PORTAL_ID_PLACEHOLDER';\n\nconst response = $input.first().json;\nconst items = response.data || response.content || (Array.isArray(response) ? response : []);\n\nconst biddings = items.map(item => ({\n  json: {\n    externalId: item.numeroControlePNCP,\n    portalId: PNCP_PORTAL_ID,\n    title: item.objetoCompra || 'Sem título',\n    organ: item.orgaoEntidade?.razaoSocial || 'Não informado',\n    state: item.unidadeOrgao?.ufSigla || null,\n    city: item.unidadeOrgao?.municipioNome || null,\n    modality: item.modalidadeNome || 'Não informado',\n    estimatedValue: item.valorTotalEstimado ? parseFloat(item.valorTotalEstimado) : null,\n    openingDate: item.dataAberturaProposta ? new Date(item.dataAberturaProposta).toISOString() : null,\n    pdfUrl: item.linkSistemaOrigem || null,\n    status: 'OPEN',\n    createdAt: new Date().toISOString(),\n    updatedAt: new Date().toISOString()\n  }\n}));\n\nreturn biddings;"
+      }
+    },
+    {
+      "id": "a1b2c3d4-0001-0001-0001-000000000004",
+      "name": "Upsert Bidding to Postgres",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [900, 300],
+      "parameters": {
+        "operation": "upsert",
+        "schema": {
+          "__rl": true,
+          "value": "public",
+          "mode": "list"
+        },
+        "table": {
+          "__rl": true,
+          "value": "Bidding",
+          "mode": "list"
+        },
+        "conflictTarget": "externalId",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "externalId": "={{ $json.externalId }}",
+            "portalId": "={{ $json.portalId }}",
+            "title": "={{ $json.title }}",
+            "organ": "={{ $json.organ }}",
+            "state": "={{ $json.state }}",
+            "city": "={{ $json.city }}",
+            "modality": "={{ $json.modality }}",
+            "estimatedValue": "={{ $json.estimatedValue }}",
+            "openingDate": "={{ $json.openingDate }}",
+            "pdfUrl": "={{ $json.pdfUrl }}",
+            "status": "={{ $json.status }}",
+            "updatedAt": "={{ $json.updatedAt }}"
+          }
+        },
+        "options": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": "postgres-credentials",
+          "name": "Postgres DB Pregão"
+        }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0001-0001-0001-000000000005",
+      "name": "Error Handler",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [900, 460],
+      "parameters": {}
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch PNCP Publications",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch PNCP Publications": {
+      "main": [
+        [
+          {
+            "node": "Transform to Bidding Schema",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transform to Bidding Schema": {
+      "main": [
+        [
+          {
+            "node": "Upsert Bidding to Postgres",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": ""
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "versionId": "wf-01-pncp-sync-v1",
+  "triggerCount": 0,
+  "tags": [
+    { "id": "tag-sync", "name": "sync" },
+    { "id": "tag-pncp", "name": "pncp" }
+  ]
+}

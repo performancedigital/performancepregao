@@ -11,6 +11,8 @@ import {
   Search,
   Zap,
   X,
+  Crown,
+  ShieldCheck,
 } from 'lucide-react'
 import { cn, getPlanColor, getPlanLabel } from '@/lib/utils'
 
@@ -34,6 +36,11 @@ const navItems = [
     label: 'Jurídico',
     href: '/dashboard/juridico',
     icon: Scale,
+  },
+  {
+    label: 'Upgrade',
+    href: '/dashboard/upgrade',
+    icon: Crown,
   },
 ]
 
@@ -109,7 +116,6 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
                     : 'text-slate-400 hover:text-white hover:bg-white/5'
                 )}
               >
-                {/* Active left border indicator */}
                 {isActive && (
                   <span className="absolute left-0 w-0.5 h-8 bg-neon rounded-r-full" />
                 )}
@@ -124,6 +130,23 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
               </Link>
             )
           })}
+
+          {/* Admin link (role-based) */}
+          {(['ADMIN', 'SUPERADMIN'] as string[]).includes((session?.user as any)?.role) && (
+            <Link
+              href="/admin"
+              onClick={onMobileClose}
+              className={cn(
+                'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200',
+                pathname.startsWith('/admin')
+                  ? 'bg-yellow-400/10 text-yellow-400 border border-yellow-400/20'
+                  : 'text-slate-500 hover:text-yellow-400 hover:bg-yellow-400/5'
+              )}
+            >
+              <ShieldCheck size={18} className="flex-shrink-0" />
+              Admin
+            </Link>
+          )}
         </nav>
 
         {/* User section */}
