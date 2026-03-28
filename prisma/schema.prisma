@@ -1,0 +1,116 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  password      String
+  role          Role      @default(USER)
+  status        Status    @default(ACTIVE)
+  planType      PlanType  @default(FREE)
+  planExpiresAt DateTime?
+  savedBiddings SavedBidding[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model Portal {
+  id        String     @id @default(cuid())
+  name      String
+  url       String
+  type      PortalType
+  isActive  Boolean    @default(true)
+  biddings  Bidding[]
+  createdAt DateTime   @default(now())
+}
+
+model Bidding {
+  id             String        @id @default(cuid())
+  externalId     String        @unique
+  portalId       String
+  portal         Portal        @relation(fields: [portalId], references: [id])
+  title          String
+  organ          String
+  state          String?
+  city           String?
+  modality       String
+  estimatedValue Decimal?      @db.Decimal(15, 2)
+  openingDate    DateTime?
+  status         BiddingStatus @default(OPEN)
+  pdfUrl         String?
+  rawText        String?       @db.Text
+  aiSummary      String?       @db.Text
+  items          BiddingItem[]
+  savedBy        SavedBidding[]
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+}
+
+model BiddingItem {
+  id          String   @id @default(cuid())
+  biddingId   String
+  bidding     Bidding  @relation(fields: [biddingId], references: [id])
+  description String
+  quantity    Decimal? @db.Decimal(15, 4)
+  unit        String?
+}
+
+model SavedBidding {
+  id        String      @id @default(cuid())
+  userId    String
+  biddingId String
+  user      User        @relation(fields: [userId], references: [id])
+  bidding   Bidding     @relation(fields: [biddingId], references: [id])
+  stage     KanbanStage @default(LEAD)
+  notes     String?     @db.Text
+  alertAt   DateTime?
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  @@unique([userId, biddingId])
+}
+
+enum Role {
+  USER
+  ADMIN
+  SUPERADMIN
+}
+
+enum Status {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum PlanType {
+  FREE
+  PRO
+  INFINITY_PLUS
+}
+
+enum BiddingStatus {
+  OPEN
+  CLOSED
+  SUSPENDED
+}
+
+enum KanbanStage {
+  LEAD
+  AVALIANDO
+  ENCAMINHADO
+  VENCIDO
+}
+
+enum PortalType {
+  PNCP
+  COMPRAS_GOV
+  BLL
+  MUNICIPAL
+}
