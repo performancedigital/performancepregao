@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { Role, Status, BiddingStatus } from '@prisma/client'
+import { Role, Status, BiddingStatus, PlanType } from '@prisma/client'
 
 const ADMIN_ROLES: Role[] = [Role.ADMIN, Role.SUPERADMIN]
 
@@ -29,6 +29,10 @@ export async function GET(request: NextRequest) {
       openBiddings,
       newBiddingsToday,
       totalSaved,
+      activePortals,
+      freeUsers,
+      proUsers,
+      infinityUsers,
     ] = await Promise.all([
       prisma.user.count(),
       prisma.user.count({ where: { status: Status.ACTIVE } }),
@@ -36,6 +40,10 @@ export async function GET(request: NextRequest) {
       prisma.bidding.count({ where: { status: BiddingStatus.OPEN } }),
       prisma.bidding.count({ where: { createdAt: { gte: startOfToday } } }),
       prisma.savedBidding.count(),
+      prisma.portal.count({ where: { isActive: true } }),
+      prisma.user.count({ where: { planType: PlanType.FREE } }),
+      prisma.user.count({ where: { planType: PlanType.PRO } }),
+      prisma.user.count({ where: { planType: PlanType.INFINITY_PLUS } }),
     ])
 
     return NextResponse.json({
@@ -45,6 +53,8 @@ export async function GET(request: NextRequest) {
       openBiddings,
       newBiddingsToday,
       totalSaved,
+      activePortals,
+      byPlan: { FREE: freeUsers, PRO: proUsers, INFINITY_PLUS: infinityUsers },
     })
   } catch (error) {
     console.error('[GET /api/admin/metrics]', error)

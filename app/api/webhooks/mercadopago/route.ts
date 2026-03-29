@@ -42,9 +42,9 @@ export async function POST(request: NextRequest) {
       const paymentId = event.data.id
 
       // Fetch payment from Mercado Pago to get metadata
-      const mpAccessToken = process.env.MERCADOPAGO_ACCESS_TOKEN
+      const mpAccessToken = process.env.MP_ACCESS_TOKEN
       if (!mpAccessToken) {
-        console.error('[MP Webhook] MERCADOPAGO_ACCESS_TOKEN is not set')
+        console.error('[MP Webhook] MP_ACCESS_TOKEN is not set')
         return NextResponse.json({ error: 'MP access token not configured' }, { status: 500 })
       }
 

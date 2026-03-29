@@ -45,6 +45,12 @@ async function main() {
         type: 'BLL',
         isActive: true,
       },
+      {
+        name: 'Portais Municipais',
+        url: 'https://www.performancepregao.online',
+        type: 'MUNICIPAL',
+        isActive: true,
+      },
     ],
     skipDuplicates: true,
   })

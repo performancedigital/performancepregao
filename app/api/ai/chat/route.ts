@@ -6,6 +6,10 @@ import { streamText, type CoreMessage } from 'ai'
 import { google } from '@ai-sdk/google'
 
 export async function POST(request: NextRequest) {
+  if (!process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
+    return NextResponse.json({ error: 'IA não configurada. Adicione GOOGLE_GENERATIVE_AI_API_KEY nas variáveis de ambiente.' }, { status: 503 })
+  }
+
   const session = await getServerSession(authOptions)
 
   if (!session?.user) {

@@ -14,6 +14,8 @@ const pageTitles: Record<string, string> = {
   '/admin': 'Painel Admin',
   '/admin/users': 'Gestão de Usuários',
   '/admin/portals': 'Portais Monitorados',
+  '/admin/logs': 'Logs do Sistema',
+  '/admin/ai': 'Configuração IA',
 }
 
 interface HeaderProps {

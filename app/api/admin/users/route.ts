@@ -74,3 +74,30 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
   }
 }
+
+export async function POST(request: NextRequest) {
+  const session = await getServerSession(authOptions)
+  if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const userRole = (session.user as any).role as Role
+  if (!ADMIN_ROLES.includes(userRole)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+  let body: { email: string; name?: string; password: string; role?: Role; planType?: PlanType; cnpj?: string; phone?: string; company?: string }
+  try { body = await request.json() } catch { return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 }) }
+
+  const { email, name, password, role = Role.USER, planType = PlanType.FREE, cnpj, phone, company } = body
+  if (!email || !password) return NextResponse.json({ error: 'Email e senha são obrigatórios' }, { status: 400 })
+
+  try {
+    const bcrypt = await import('bcryptjs')
+    const hashedPassword = await bcrypt.hash(password, 12)
+    const user = await prisma.user.create({
+      data: { email, name, password: hashedPassword, role, planType, cnpj, phone, company },
+      select: { id: true, email: true, name: true, role: true, planType: true, createdAt: true }
+    })
+    return NextResponse.json(user, { status: 201 })
+  } catch (error: any) {
+    if (error?.code === 'P2002') return NextResponse.json({ error: 'E-mail já cadastrado' }, { status: 409 })
+    console.error('[POST /api/admin/users]', error)
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
+  }
+}

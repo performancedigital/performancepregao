@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { GlassCard } from '@/components/ui/GlassCard'
 import { NeonButton } from '@/components/ui/NeonButton'
 import { SkeletonRow } from '@/components/ui/SkeletonRow'
-import { Search, Filter, ChevronLeft, ChevronRight, Shield, Ban, CheckCircle, Crown } from 'lucide-react'
+import { Search, Filter, ChevronLeft, ChevronRight, Shield, Ban, CheckCircle, Crown, Plus, X } from 'lucide-react'
 
 const PLAN_LABELS: Record<string, string> = { FREE: 'Free', PRO: 'Pro', INFINITY_PLUS: 'Infinity+' }
 const PLAN_COLORS: Record<string, string> = {
@@ -39,6 +39,10 @@ export default function AdminUsersPage() {
   const [totalPages, setTotalPages] = useState(1)
   const [total, setTotal] = useState(0)
   const [updating, setUpdating] = useState<string | null>(null)
+  const [showCreateModal, setShowCreateModal] = useState(false)
+  const [creating, setCreating] = useState(false)
+  const [createForm, setCreateForm] = useState({ email: '', name: '', password: '', role: 'USER', planType: 'FREE', cnpj: '', phone: '', company: '' })
+  const [createError, setCreateError] = useState('')
 
   async function load() {
     setLoading(true)
@@ -69,6 +73,23 @@ export default function AdminUsersPage() {
     setUpdating(null)
   }
 
+  async function createUser(e: React.FormEvent) {
+    e.preventDefault()
+    setCreating(true)
+    setCreateError('')
+    const res = await fetch('/api/admin/users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(createForm),
+    })
+    const data = await res.json()
+    setCreating(false)
+    if (!res.ok) { setCreateError(data.error || 'Erro ao criar usuário'); return }
+    setShowCreateModal(false)
+    setCreateForm({ email: '', name: '', password: '', role: 'USER', planType: 'FREE', cnpj: '', phone: '', company: '' })
+    await load()
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -76,7 +97,47 @@ export default function AdminUsersPage() {
           <h1 className="text-2xl font-black text-white">Gestão de Usuários</h1>
           <p className="text-slate-500 text-sm mt-1">{total} usuários cadastrados</p>
         </div>
+        <NeonButton size="sm" onClick={() => setShowCreateModal(true)}>
+          <Plus size={14} className="mr-1.5" /> Criar Usuário
+        </NeonButton>
       </div>
+
+      {/* Create User Modal */}
+      {showCreateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={() => setShowCreateModal(false)}>
+          <div className="bg-[#0a0a0a] border border-white/10 rounded-2xl p-6 w-full max-w-md mx-4" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-white font-bold text-lg">Criar Novo Usuário</h2>
+              <button onClick={() => setShowCreateModal(false)} className="text-gray-500 hover:text-white"><X size={18} /></button>
+            </div>
+            <form onSubmit={createUser} className="space-y-3">
+              <input required placeholder="Email *" type="email" value={createForm.email} onChange={e => setCreateForm(f => ({...f, email: e.target.value}))} className="input-neon w-full px-3 py-2 text-sm rounded-lg" />
+              <input placeholder="Nome" value={createForm.name} onChange={e => setCreateForm(f => ({...f, name: e.target.value}))} className="input-neon w-full px-3 py-2 text-sm rounded-lg" />
+              <input required placeholder="Senha *" type="password" value={createForm.password} onChange={e => setCreateForm(f => ({...f, password: e.target.value}))} className="input-neon w-full px-3 py-2 text-sm rounded-lg" />
+              <div className="grid grid-cols-2 gap-3">
+                <select value={createForm.role} onChange={e => setCreateForm(f => ({...f, role: e.target.value}))} className="input-neon px-3 py-2 text-sm rounded-lg appearance-none">
+                  <option value="USER">Usuário</option>
+                  <option value="ADMIN">Admin</option>
+                </select>
+                <select value={createForm.planType} onChange={e => setCreateForm(f => ({...f, planType: e.target.value}))} className="input-neon px-3 py-2 text-sm rounded-lg appearance-none">
+                  <option value="FREE">Free</option>
+                  <option value="PRO">Pro</option>
+                  <option value="INFINITY_PLUS">Infinity+</option>
+                </select>
+              </div>
+              <input placeholder="Empresa" value={createForm.company} onChange={e => setCreateForm(f => ({...f, company: e.target.value}))} className="input-neon w-full px-3 py-2 text-sm rounded-lg" />
+              <div className="grid grid-cols-2 gap-3">
+                <input placeholder="CNPJ" value={createForm.cnpj} onChange={e => setCreateForm(f => ({...f, cnpj: e.target.value}))} className="input-neon w-full px-3 py-2 text-sm rounded-lg" />
+                <input placeholder="Telefone" value={createForm.phone} onChange={e => setCreateForm(f => ({...f, phone: e.target.value}))} className="input-neon w-full px-3 py-2 text-sm rounded-lg" />
+              </div>
+              {createError && <p className="text-red-400 text-xs">{createError}</p>}
+              <button type="submit" disabled={creating} className="w-full bg-cyan-400 hover:bg-cyan-300 disabled:opacity-50 text-black font-bold py-2 rounded-lg text-sm transition-colors">
+                {creating ? 'Criando...' : 'Criar Usuário'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Filters */}
       <GlassCard className="p-4">

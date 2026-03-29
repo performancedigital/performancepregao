@@ -1,24 +1,16 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import { GlassCard } from '@/components/ui/GlassCard'
 import {
   Activity,
   Bot,
   ChevronRight,
-  Send,
   Users,
-  X,
   Zap,
   Database,
   Globe,
 } from 'lucide-react'
-
-const MOCK_STATS = [
-  { label: 'Usuários Totais', value: '412', sub: '+12 este mês', icon: Users, color: 'text-neon' },
-  { label: 'Usuários Ativos', value: '387', sub: '94% do total', icon: Activity, color: 'text-green-400' },
-  { label: 'Editais Coletados', value: '89.240', sub: '+3.180 hoje', icon: Database, color: 'text-neon-purple' },
-  { label: 'Portais Ativos', value: '3 / 19', sub: 'PNCP, Compras.gov, BLL', icon: Globe, color: 'text-yellow-400' },
-]
 
 const QUICK_LINKS = [
   { label: 'Gestão de Usuários', href: '/admin/users', desc: 'Ver e gerenciar todos os usuários, planos e status.', icon: Users },
@@ -28,6 +20,19 @@ const QUICK_LINKS = [
 ]
 
 export default function AdminPage() {
+  const [metrics, setMetrics] = useState<any>(null)
+
+  useEffect(() => {
+    fetch('/api/admin/metrics').then(r => r.json()).then(setMetrics).catch(() => {})
+  }, [])
+
+  const stats = [
+    { label: 'Usuários Totais', value: metrics?.totalUsers ?? '...', sub: `${metrics?.activeUsers ?? 0} ativos`, icon: Users, color: 'text-neon' },
+    { label: 'Usuários Ativos', value: metrics?.activeUsers ?? '...', sub: `${metrics?.totalUsers ? Math.round((metrics.activeUsers / metrics.totalUsers) * 100) : 0}% do total`, icon: Activity, color: 'text-green-400' },
+    { label: 'Editais Coletados', value: metrics?.totalBiddings?.toLocaleString('pt-BR') ?? '...', sub: 'Total no banco', icon: Database, color: 'text-neon-purple' },
+    { label: 'Portais Ativos', value: metrics?.activePortals ?? '...', sub: 'PNCP, Compras.gov, BLL, Municipal', icon: Globe, color: 'text-yellow-400' },
+  ]
+
   return (
     <div className="max-w-6xl mx-auto space-y-8 p-6">
       {/* Header */}
@@ -57,7 +62,7 @@ export default function AdminPage() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {MOCK_STATS.map((stat) => (
+        {stats.map((stat) => (
           <GlassCard key={stat.label} className="p-5 hover:border-white/20 transition-all">
             <div className="flex items-start justify-between mb-4">
               <div>
@@ -101,33 +106,39 @@ export default function AdminPage() {
         </div>
       </div>
 
-      {/* Recent activity feed */}
+      {/* Recent activity */}
       <GlassCard className="p-6">
-        <h2 className="text-white font-bold text-base mb-5">Atividade Recente</h2>
-        <div className="space-y-3">
-          {[
-            { time: 'há 2 min', text: 'Scraper PNCP coletou 47 novos editais', type: 'success' },
-            { time: 'há 8 min', text: 'Novo usuário cadastrado: joao.silva@empresa.com.br', type: 'info' },
-            { time: 'há 15 min', text: 'Pagamento PRO aprovado — MercadoPago #PAY-001842', type: 'success' },
-            { time: 'há 32 min', text: 'Scraper BLL: timeout na tentativa 2/3 — retentando', type: 'warn' },
-            { time: 'há 1h', text: 'Resumos IA gerados para 124 editais PNCP', type: 'success' },
-            { time: 'há 2h', text: 'Alertas de manhã enviados para 198 usuários', type: 'info' },
-          ].map((event, i) => (
-            <div key={i} className="flex items-center gap-3 py-2 border-b border-white/5 last:border-0">
-              <div
-                className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                  event.type === 'success'
-                    ? 'bg-green-400'
-                    : event.type === 'warn'
-                    ? 'bg-yellow-400'
-                    : 'bg-neon'
-                }`}
-              />
-              <p className="text-slate-300 text-xs flex-1">{event.text}</p>
-              <span className="text-slate-600 text-[10px] flex-shrink-0">{event.time}</span>
+        <h2 className="text-white font-bold text-base mb-5">Métricas do Sistema</h2>
+        {metrics ? (
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            <div className="bg-white/5 rounded-lg p-3">
+              <p className="text-gray-500 text-xs">Plano Free</p>
+              <p className="text-white font-bold text-lg">{metrics.byPlan?.FREE ?? 0}</p>
             </div>
-          ))}
-        </div>
+            <div className="bg-white/5 rounded-lg p-3">
+              <p className="text-gray-500 text-xs">Plano PRO</p>
+              <p className="text-cyan-400 font-bold text-lg">{metrics.byPlan?.PRO ?? 0}</p>
+            </div>
+            <div className="bg-white/5 rounded-lg p-3">
+              <p className="text-gray-500 text-xs">Infinity Plus</p>
+              <p className="text-purple-400 font-bold text-lg">{metrics.byPlan?.INFINITY_PLUS ?? 0}</p>
+            </div>
+            <div className="bg-white/5 rounded-lg p-3">
+              <p className="text-gray-500 text-xs">Editais Abertos</p>
+              <p className="text-green-400 font-bold text-lg">{metrics.openBiddings ?? 0}</p>
+            </div>
+            <div className="bg-white/5 rounded-lg p-3">
+              <p className="text-gray-500 text-xs">Editais Salvos Total</p>
+              <p className="text-white font-bold text-lg">{metrics.totalSaved ?? 0}</p>
+            </div>
+            <div className="bg-white/5 rounded-lg p-3">
+              <p className="text-gray-500 text-xs">Portais Ativos</p>
+              <p className="text-yellow-400 font-bold text-lg">{metrics.activePortals ?? 0}</p>
+            </div>
+          </div>
+        ) : (
+          <p className="text-gray-500 text-sm">Carregando métricas...</p>
+        )}
       </GlassCard>
     </div>
   )

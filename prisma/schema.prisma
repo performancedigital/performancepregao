@@ -16,7 +16,11 @@ model User {
   status        Status    @default(ACTIVE)
   planType      PlanType  @default(FREE)
   planExpiresAt DateTime?
+  cnpj          String?
+  phone         String?
+  company       String?
   savedBiddings SavedBidding[]
+  alerts        Alert[]
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 }
@@ -113,4 +117,19 @@ enum PortalType {
   COMPRAS_GOV
   BLL
   MUNICIPAL
+}
+
+model Alert {
+  id        String     @id @default(cuid())
+  userId    String
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  keywords  String[]
+  states    String[]
+  portals   PortalType[]
+  minValue  Decimal?   @db.Decimal(15, 2)
+  isActive  Boolean    @default(true)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@index([userId])
 }
