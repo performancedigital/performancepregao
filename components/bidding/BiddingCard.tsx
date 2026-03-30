@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { GlassCard } from '@/components/ui/GlassCard'
 import { NeonButton } from '@/components/ui/NeonButton'
@@ -84,7 +84,7 @@ export function BiddingCard({
         {(state || city) && (
           <div className="flex items-center gap-2 text-slate-400 text-xs">
             <MapPin size={12} className="flex-shrink-0" />
-            <span>{[city, state].filter(Boolean).join(' — ')}</span>
+            <span>{[city, state].filter(Boolean).join(' â€” ')}</span>
           </div>
         )}
         <div
@@ -120,7 +120,7 @@ export function BiddingCard({
           size="sm"
           onClick={() => onView?.(id)}
           className="flex items-center gap-1.5"
-          disabled={isExpired}
+          disabled={false}
         >
           <Zap size={12} />
           Ver Edital
@@ -129,3 +129,4 @@ export function BiddingCard({
     </GlassCard>
   )
 }
+

@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
@@ -16,7 +16,7 @@ const PORTALS = [
   { label: 'Municipal', value: 'MUNICIPAL' },
 ]
 const STATES = ['', 'AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO']
-const MODALITIES = ['', 'Pregão Eletrônico', 'Dispensa Eletrônica', 'Concorrência', 'Tomada de Preços', 'Credenciamento']
+const MODALITIES = ['', 'PregÃ£o EletrÃ´nico', 'Dispensa EletrÃ´nica', 'ConcorrÃªncia', 'Tomada de PreÃ§os', 'Credenciamento']
 
 const PAGE_SIZE = 12
 
@@ -50,7 +50,7 @@ export default function OpportunitiesPage() {
 
   const fetchBiddings = useCallback(async (p = page) => {
     setLoading(true)
-    const params = new URLSearchParams({ page: String(p), limit: String(PAGE_SIZE) })
+    const params = new URLSearchParams({ page: String(p), limit: String(PAGE_SIZE), onlyActive: "false" })
     if (search) params.set('search', search)
     if (portal) params.set('portal', portal)
     if (state) params.set('state', state)
@@ -112,7 +112,7 @@ export default function OpportunitiesPage() {
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
             <input
               type="text"
-              placeholder="Pesquisar por título, órgão, palavras-chave..."
+              placeholder="Pesquisar por tÃ­tulo, Ã³rgÃ£o, palavras-chave..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               onKeyDown={handleKeyDown}
@@ -177,7 +177,7 @@ export default function OpportunitiesPage() {
               </select>
             </div>
             <div>
-              <label className="text-xs text-slate-500 mb-1.5 block">Valor mínimo (R$)</label>
+              <label className="text-xs text-slate-500 mb-1.5 block">Valor mÃ­nimo (R$)</label>
               <input
                 type="number"
                 placeholder="Ex: 50000"
@@ -257,7 +257,7 @@ export default function OpportunitiesPage() {
       {/* Pagination */}
       {!loading && totalPages > 1 && (
         <div className="flex items-center justify-between pt-2">
-          <p className="text-slate-500 text-sm">Página {page} de {totalPages}</p>
+          <p className="text-slate-500 text-sm">PÃ¡gina {page} de {totalPages}</p>
           <div className="flex items-center gap-2">
             <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}
               className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-white/10 text-slate-400 hover:text-white hover:border-white/20 disabled:opacity-40 disabled:cursor-not-allowed transition-all text-sm">
@@ -278,7 +278,7 @@ export default function OpportunitiesPage() {
             </div>
             <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages}
               className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-white/10 text-slate-400 hover:text-white hover:border-white/20 disabled:opacity-40 disabled:cursor-not-allowed transition-all text-sm">
-              Próxima <ChevronRight size={16} />
+              PrÃ³xima <ChevronRight size={16} />
             </button>
           </div>
         </div>
@@ -286,3 +286,4 @@ export default function OpportunitiesPage() {
     </div>
   )
 }
+
