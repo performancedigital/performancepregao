@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+﻿import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
@@ -25,27 +25,20 @@ export async function GET(request: NextRequest) {
     status: BiddingStatus.OPEN,
     ...(onlyActive
       ? {
-          OR: [
-            { openingDate: null },
-            { openingDate: { gte: new Date() } },
-          ],
+          OR: [{ openingDate: null }, { openingDate: { gte: new Date() } }],
         }
       : {}),
   }
 
+  const andFilters: Prisma.BiddingWhereInput[] = []
+
   if (search) {
-    const searchFilter: Prisma.BiddingWhereInput = {
+    andFilters.push({
       OR: [
         { title: { contains: search, mode: 'insensitive' } },
         { organ: { contains: search, mode: 'insensitive' } },
       ],
-    }
-
-    if (where.AND) {
-      ;(where.AND as Prisma.BiddingWhereInput[]).push(searchFilter)
-    } else {
-      where.AND = [searchFilter]
-    }
+    })
   }
 
   if (portal) {
@@ -60,11 +53,21 @@ export async function GET(request: NextRequest) {
   }
 
   if (modality) {
-    where.modality = { contains: modality, mode: 'insensitive' }
+    const firstToken = modality.trim().split(/\s+/)[0]
+    andFilters.push({
+      OR: [
+        { modality: { contains: modality, mode: 'insensitive' } },
+        { modality: { contains: firstToken, mode: 'insensitive' } },
+      ],
+    })
   }
 
   if (minValue && !isNaN(Number(minValue))) {
     where.estimatedValue = { gte: new Prisma.Decimal(Number(minValue)) }
+  }
+
+  if (andFilters.length > 0) {
+    where.AND = andFilters
   }
 
   try {

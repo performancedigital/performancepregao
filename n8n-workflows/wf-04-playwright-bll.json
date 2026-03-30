@@ -1,241 +1,69 @@
-{
-  "name": "WF-04 Playwright BLL Scraper",
+﻿{
+  "name": "WF-04 BLL via Playwright Worker",
   "nodes": [
     {
-      "id": "d4e5f6g7-0004-0004-0004-000000000001",
-      "name": "Schedule Trigger Every 2h",
+      "name": "Schedule Trigger",
       "type": "n8n-nodes-base.scheduleTrigger",
-      "typeVersion": 1.1,
-      "position": [240, 300],
+      "typeVersion": 1,
+      "position": [240, 260],
       "parameters": {
         "rule": {
           "interval": [
-            {
-              "field": "hours",
-              "hoursInterval": 2
-            }
+            { "field": "hours", "hoursInterval": 2 }
           ]
         }
       }
     },
     {
-      "id": "d4e5f6g7-0004-0004-0004-000000000002",
-      "name": "Fetch BLL Portal ID",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.4,
-      "position": [460, 300],
-      "parameters": {
-        "operation": "executeQuery",
-        "query": "SELECT id FROM \"Portal\" WHERE type = 'BLL' AND \"isActive\" = true LIMIT 1",
-        "options": {}
-      },
-      "credentials": {
-        "postgres": {
-          "id": "postgres-credentials",
-          "name": "Postgres DB Pregão"
-        }
-      }
-    },
-    {
-      "id": "d4e5f6g7-0004-0004-0004-000000000003",
-      "name": "Scrape BLL via Playwright Worker",
+      "name": "Call Playwright Worker",
       "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.1,
-      "position": [680, 300],
+      "typeVersion": 4,
+      "position": [460, 260],
       "parameters": {
         "method": "POST",
-        "url": "http://playwright-worker:3001/scrape",
+        "url": "http://173.212.217.32:3001/scrape/bll",
         "sendBody": true,
-        "contentType": "json",
-        "body": {
-          "url": "https://bll.org.br/licitacoes",
-          "selectors": {
-            "title": ".titulo",
-            "organ": ".orgao",
-            "value": ".valor",
-            "date": ".data",
-            "modality": ".modalidade",
-            "link": ".link-edital"
-          },
-          "waitFor": "networkidle"
-        },
-        "options": {
-          "timeout": 60000
-        }
+        "specifyBody": "json",
+        "jsonBody": "={ \"source\": \"bll\", \"limit\": 100 }",
+        "options": { "timeout": 120000 }
       }
     },
     {
-      "id": "d4e5f6g7-0004-0004-0004-000000000004",
-      "name": "Check Scrape Success",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2,
-      "position": [900, 300],
-      "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict"
-          },
-          "conditions": [
-            {
-              "id": "cond-scrape-ok",
-              "leftValue": "={{ $json.success }}",
-              "rightValue": true,
-              "operator": {
-                "type": "boolean",
-                "operation": "equal"
-              }
-            }
-          ],
-          "combinator": "and"
-        }
-      }
-    },
-    {
-      "id": "d4e5f6g7-0004-0004-0004-000000000005",
-      "name": "Normalize BLL Data",
+      "name": "Transform BLL",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1120, 200],
+      "position": [700, 260],
       "parameters": {
-        "jsCode": "const portalId = $('Fetch BLL Portal ID').first().json.id;\nconst scrapeResult = $input.first().json;\nconst items = scrapeResult.data || [];\n\nconst biddings = items\n  .filter(item => item.title)\n  .map((item, index) => {\n    // Parse value: remove R$, dots, replace comma with dot\n    let estimatedValue = null;\n    if (item.value) {\n      const cleanValue = item.value.replace(/[R$\\s.]/g, '').replace(',', '.');\n      const parsed = parseFloat(cleanValue);\n      if (!isNaN(parsed)) estimatedValue = parsed;\n    }\n\n    // Parse date\n    let openingDate = null;\n    if (item.date) {\n      // Handle dd/MM/yyyy or dd/MM/yyyy HH:mm format\n      const parts = item.date.trim().split(/[\\s/]/);\n      if (parts.length >= 3) {\n        const isoDate = `${parts[2]}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`;\n        const d = new Date(isoDate);\n        if (!isNaN(d.getTime())) openingDate = d.toISOString();\n      }\n    }\n\n    const externalId = `BLL-${Date.now()}-${index}-${(item.title || '').slice(0,20).replace(/\\s+/g,'_')}`;\n\n    return {\n      json: {\n        externalId,\n        portalId,\n        title: (item.title || '').trim(),\n        organ: (item.organ || 'BLL - Não informado').trim(),\n        state: null,\n        city: null,\n        modality: (item.modality || 'Não informado').trim(),\n        estimatedValue,\n        openingDate,\n        pdfUrl: item.link || null,\n        status: 'OPEN',\n        createdAt: new Date().toISOString(),\n        updatedAt: new Date().toISOString()\n      }\n    };\n  });\n\nreturn biddings;"
+        "jsCode": "const BLL_PORTAL_ID = 'cmnatwc8p0003f8xp4x5v1q2w'; // substituir se diferente no seu banco\nconst rows = $input.first().json?.data || $input.first().json || [];\nconst arr = Array.isArray(rows) ? rows : [];\nreturn arr.filter(i => i.title).map((i, idx) => ({ json: {\n  externalId: i.externalId || `BLL-${Date.now()}-${idx}`,\n  portalId: BLL_PORTAL_ID,\n  title: String(i.title || '').trim(),\n  organ: String(i.organ || 'BLL').trim(),\n  state: i.state || null,\n  city: i.city || null,\n  modality: i.modality || 'Nao informado',\n  estimatedValue: i.estimatedValue ? Number(i.estimatedValue) : null,\n  openingDate: i.openingDate || null,\n  pdfUrl: i.pdfUrl || i.link || null,\n  rawText: i.rawText || null\n}}));"
       }
     },
     {
-      "id": "d4e5f6g7-0004-0004-0004-000000000006",
-      "name": "Upsert BLL Biddings to Postgres",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.4,
-      "position": [1340, 200],
+      "name": "POST n8n-receiver",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [940, 260],
       "parameters": {
-        "operation": "upsert",
-        "schema": {
-          "__rl": true,
-          "value": "public",
-          "mode": "list"
+        "method": "POST",
+        "url": "https://www.performancepregao.online/api/n8n-receiver",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "x-n8n-secret", "value": "perf-n8n-secret-2024-ultra-secure-webhook-key!!" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
         },
-        "table": {
-          "__rl": true,
-          "value": "Bidding",
-          "mode": "list"
-        },
-        "conflictTarget": "externalId",
-        "columns": {
-          "mappingMode": "defineBelow",
-          "value": {
-            "externalId": "={{ $json.externalId }}",
-            "portalId": "={{ $json.portalId }}",
-            "title": "={{ $json.title }}",
-            "organ": "={{ $json.organ }}",
-            "state": "={{ $json.state }}",
-            "city": "={{ $json.city }}",
-            "modality": "={{ $json.modality }}",
-            "estimatedValue": "={{ $json.estimatedValue }}",
-            "openingDate": "={{ $json.openingDate }}",
-            "pdfUrl": "={{ $json.pdfUrl }}",
-            "status": "={{ $json.status }}",
-            "updatedAt": "={{ $json.updatedAt }}"
-          }
-        },
-        "options": {}
-      },
-      "credentials": {
-        "postgres": {
-          "id": "postgres-credentials",
-          "name": "Postgres DB Pregão"
-        }
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json }}",
+        "options": { "timeout": 30000 }
       }
-    },
-    {
-      "id": "d4e5f6g7-0004-0004-0004-000000000007",
-      "name": "Scrape Failed",
-      "type": "n8n-nodes-base.noOp",
-      "typeVersion": 1,
-      "position": [1120, 460],
-      "parameters": {}
     }
   ],
   "connections": {
-    "Schedule Trigger Every 2h": {
-      "main": [
-        [
-          {
-            "node": "Fetch BLL Portal ID",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Fetch BLL Portal ID": {
-      "main": [
-        [
-          {
-            "node": "Scrape BLL via Playwright Worker",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Scrape BLL via Playwright Worker": {
-      "main": [
-        [
-          {
-            "node": "Check Scrape Success",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Check Scrape Success": {
-      "main": [
-        [
-          {
-            "node": "Normalize BLL Data",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Scrape Failed",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Normalize BLL Data": {
-      "main": [
-        [
-          {
-            "node": "Upsert BLL Biddings to Postgres",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    }
+    "Schedule Trigger": { "main": [[{ "node": "Call Playwright Worker", "type": "main", "index": 0 }]] },
+    "Call Playwright Worker": { "main": [[{ "node": "Transform BLL", "type": "main", "index": 0 }]] },
+    "Transform BLL": { "main": [[{ "node": "POST n8n-receiver", "type": "main", "index": 0 }]] }
   },
-  "settings": {
-    "executionOrder": "v1",
-    "saveManualExecutions": true,
-    "callerPolicy": "workflowsFromSameOwner",
-    "errorWorkflow": ""
-  },
-  "staticData": null,
-  "meta": {
-    "templateCredsSetupCompleted": true
-  },
-  "pinData": {},
-  "versionId": "wf-04-playwright-bll-v1",
-  "triggerCount": 0,
-  "tags": [
-    { "id": "tag-scraping", "name": "scraping" },
-    { "id": "tag-bll", "name": "bll" },
-    { "id": "tag-playwright", "name": "playwright" }
-  ]
+  "active": false,
+  "settings": { "executionOrder": "v1" }
 }
