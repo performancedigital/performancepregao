@@ -72,7 +72,11 @@ export default function BiddingDetailPage() {
           </span>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">`r`n          <div className="bg-white/5 rounded-lg p-3">`r`n            <p className="text-gray-500 text-xs mb-1">Numero do edital</p>`r`n            <p className="text-white text-sm font-medium break-all">{bidding.externalId || 'Nao informado'}</p>`r`n          </div>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
+          <div className="bg-white/5 rounded-lg p-3">
+            <p className="text-gray-500 text-xs mb-1">Numero do edital</p>
+            <p className="text-white text-sm font-medium break-all">{bidding.externalId || 'Nao informado'}</p>
+          </div>
           <div className="bg-white/5 rounded-lg p-3">
             <p className="text-gray-500 text-xs mb-1">Orgao</p>
             <p className="text-white text-sm font-medium">{bidding.organ}</p>

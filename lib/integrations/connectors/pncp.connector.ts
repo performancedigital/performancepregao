@@ -3,6 +3,16 @@ import { IConnector, FetchResult, NormalizedBidding, ConnectorHealth } from '../
 const BASE_URL = 'https://pncp.gov.br/api/consulta/v1'
 const PAGE_SIZE = 50
 
+// Codigos de modalidade PNCP
+const MODALIDADES = [
+  { codigo: 6, nome: 'Pregao - Eletronico' },
+  { codigo: 7, nome: 'Pregao - Presencial' },
+  { codigo: 4, nome: 'Concorrencia - Eletronica' },
+  { codigo: 8, nome: 'Dispensa' },
+  { codigo: 9, nome: 'Inexigibilidade' },
+  { codigo: 12, nome: 'Credenciamento' },
+]
+
 interface PncpItem {
   numeroControlePNCP: string
   objetoCompra: string
@@ -30,32 +40,44 @@ export class PncpConnector implements IConnector {
     const dataInicial = formatDate(windowStart)
     const dataFinal = formatDate(windowEnd)
     const allRecords: unknown[] = []
-    let pagina = 1
-    let totalPaginas = 1
 
-    do {
-      const url = `${BASE_URL}/contratacoes/publicacao?dataInicial=${dataInicial}&dataFinal=${dataFinal}&pagina=${pagina}&tamanhoPagina=${PAGE_SIZE}`
-      const res = await fetch(url, {
-        headers: { 'Accept': 'application/json', 'User-Agent': 'PerformancePregao/1.0' },
-        signal: AbortSignal.timeout(15000),
-      })
+    for (const mod of MODALIDADES) {
+      let pagina = 1
+      let totalPaginas = 1
 
-      if (!res.ok) {
-        if (res.status === 404) break
-        throw new Error(`PNCP HTTP ${res.status} pagina ${pagina}`)
-      }
+      do {
+        const url = `${BASE_URL}/contratacoes/publicacao?dataInicial=${dataInicial}&dataFinal=${dataFinal}&codigoModalidadeContratacao=${mod.codigo}&pagina=${pagina}&tamanhoPagina=${PAGE_SIZE}`
+        
+        try {
+          const res = await fetch(url, {
+            headers: { 'Accept': 'application/json', 'User-Agent': 'PerformancePregao/1.0' },
+            signal: AbortSignal.timeout(20000),
+          })
 
-      const data = await res.json()
-      const items: PncpItem[] = data.data || data.content || (Array.isArray(data) ? data : [])
-      allRecords.push(...items)
+          if (!res.ok) {
+            if (res.status === 404) break
+            // Se uma modalidade falhar, continua com as outras
+            console.error(`PNCP modalidade ${mod.codigo} pag ${pagina}: HTTP ${res.status}`)
+            break
+          }
 
-      totalPaginas = data.totalPaginas ?? data.totalPages ?? 1
-      pagina++
+          const data = await res.json()
+          const items: PncpItem[] = data.data || data.content || (Array.isArray(data) ? data : [])
+          allRecords.push(...items)
 
-      if (pagina > totalPaginas || items.length === 0) break
+          totalPaginas = data.totalPaginas ?? data.totalPages ?? 1
+          pagina++
 
-      await new Promise((r) => setTimeout(r, 300))
-    } while (pagina <= totalPaginas)
+          if (pagina > totalPaginas || items.length === 0) break
+
+          await new Promise((r) => setTimeout(r, 300))
+        } catch (err) {
+          // Timeout ou erro de rede, continua com proxima modalidade
+          console.error(`PNCP modalidade ${mod.codigo} erro:`, err)
+          break
+        }
+      } while (pagina <= Math.min(totalPaginas, 10)) // max 10 paginas por modalidade
+    }
 
     return {
       records: allRecords,
@@ -98,9 +120,10 @@ export class PncpConnector implements IConnector {
     const start = Date.now()
     try {
       const today = formatDate(new Date())
+      // Usa modalidade Dispensa (8) para health check
       const res = await fetch(
-        `${BASE_URL}/contratacoes/publicacao?dataInicial=${today}&dataFinal=${today}&pagina=1&tamanhoPagina=1`,
-        { signal: AbortSignal.timeout(8000) }
+        `${BASE_URL}/contratacoes/publicacao?dataInicial=${today}&dataFinal=${today}&codigoModalidadeContratacao=8&pagina=1&tamanhoPagina=1`,
+        { signal: AbortSignal.timeout(10000) }
       )
       return { ok: res.ok, latencyMs: Date.now() - start, message: `HTTP ${res.status}` }
     } catch (err) {

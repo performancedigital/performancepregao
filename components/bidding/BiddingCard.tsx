@@ -39,13 +39,16 @@ export function BiddingCard({
 }: BiddingCardProps) {
   const [saved, setSaved] = useState(isSaved)
   const timeUntil = getTimeUntil(openingDate)
+  
+  // Status baseado no campo status do banco + data
+  const isExpired = status === 'CLOSED' || timeUntil === 'Encerrado'
+  const isOpen = status === 'OPEN' && !isExpired
 
   const isUrgent =
+    isOpen &&
     openingDate !== null &&
     openingDate !== undefined &&
     new Date(openingDate).getTime() - Date.now() < 86400000 * 2 // less than 2 days
-
-  const isExpired = timeUntil === 'Encerrado'
 
   function handleSave() {
     setSaved((prev) => !prev)
@@ -106,6 +109,11 @@ export function BiddingCard({
           {isExpired && (
             <span className="bg-slate-800 text-slate-500 px-1.5 py-0.5 rounded text-[10px] font-bold">
               ENCERRADO
+            </span>
+          )}
+          {!isExpired && isOpen && (
+            <span className="bg-green-500/20 text-green-400 px-1.5 py-0.5 rounded text-[10px] font-bold">
+              ABERTO
             </span>
           )}
         </div>
