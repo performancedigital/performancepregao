@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
@@ -15,8 +15,18 @@ const PORTALS = [
   { label: 'BLL', value: 'BLL' },
   { label: 'Municipal', value: 'MUNICIPAL' },
 ]
-const STATES = ['', 'AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO']
-const MODALITIES = ['', 'PregÃ£o EletrÃ´nico', 'Dispensa EletrÃ´nica', 'ConcorrÃªncia', 'Tomada de PreÃ§os', 'Credenciamento']
+
+const STATES = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO']
+
+// Valores reais presentes no banco (PNCP)
+const MODALITIES = [
+  { label: 'Todas', value: '' },
+  { label: 'Dispensa', value: 'Dispensa' },
+  { label: 'Pregao Eletronico', value: 'Pregao' },
+  { label: 'Concorrencia', value: 'Concorrencia' },
+  { label: 'Credenciamento', value: 'Credenciamento' },
+  { label: 'Tomada de Precos', value: 'Tomada' },
+]
 
 const PAGE_SIZE = 12
 
@@ -48,25 +58,45 @@ export default function OpportunitiesPage() {
   const [totalPages, setTotalPages] = useState(1)
   const [savingId, setSavingId] = useState<string | null>(null)
 
-  const fetchBiddings = useCallback(async (p = page) => {
+  const fetchBiddings = useCallback(async (p: number, overrides?: {
+    search?: string; portal?: string; state?: string; modality?: string; minValue?: string
+  }) => {
     setLoading(true)
-    const params = new URLSearchParams({ page: String(p), limit: String(PAGE_SIZE), onlyActive: "false" })
-    if (search) params.set('search', search)
-    if (portal) params.set('portal', portal)
-    if (state) params.set('state', state)
-    if (modality) params.set('modality', modality)
-    if (minValue) params.set('minValue', minValue)
+    const s = overrides?.search ?? search
+    const po = overrides?.portal ?? portal
+    const st = overrides?.state ?? state
+    const mo = overrides?.modality ?? modality
+    const mv = overrides?.minValue ?? minValue
+
+    const params = new URLSearchParams({ page: String(p), limit: String(PAGE_SIZE), onlyActive: 'false' })
+    if (s) params.set('search', s)
+    if (po) params.set('portal', po)
+    if (st) params.set('state', st)
+    if (mo) params.set('modality', mo)
+    if (mv) params.set('minValue', mv)
+
     try {
       const res = await fetch(`/api/biddings?${params}`)
       const json = await res.json()
       setBiddings(json.data ?? [])
       setTotal(json.total ?? 0)
       setTotalPages(json.totalPages ?? 1)
-    } catch {}
+    } catch {
+      setBiddings([])
+      setTotal(0)
+    }
     setLoading(false)
-  }, [search, portal, state, modality, minValue, page])
+  }, [search, portal, state, modality, minValue])
 
-  useEffect(() => { fetchBiddings(page) }, [page])
+  useEffect(() => {
+    fetchBiddings(page)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page])
+
+  useEffect(() => {
+    fetchBiddings(1)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   function handleSearch() {
     setPage(1)
@@ -84,7 +114,7 @@ export default function OpportunitiesPage() {
     setModality('')
     setMinValue('')
     setPage(1)
-    setTimeout(() => fetchBiddings(1), 0)
+    fetchBiddings(1, { search: '', portal: '', state: '', modality: '', minValue: '' })
   }
 
   async function handleSave(id: string) {
@@ -95,9 +125,13 @@ export default function OpportunitiesPage() {
     setSavingId(null)
   }
 
+  function handlePageChange(newPage: number) {
+    setPage(newPage)
+    fetchBiddings(newPage)
+  }
+
   const hasActiveFilters = search || portal || state || modality || minValue
 
-  // Map portal type to display name for BiddingCard
   function portalDisplay(b: Bidding) {
     const map: Record<string, string> = { PNCP: 'PNCP', COMPRAS_GOV: 'Compras.gov', BLL: 'BLL', MUNICIPAL: 'Municipal' }
     return map[b.portal?.type] ?? b.portal?.name ?? '-'
@@ -112,7 +146,7 @@ export default function OpportunitiesPage() {
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
             <input
               type="text"
-              placeholder="Pesquisar por tÃ­tulo, Ã³rgÃ£o, palavras-chave..."
+              placeholder="Pesquisar por titulo, orgao, cidade..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               onKeyDown={handleKeyDown}
@@ -152,7 +186,7 @@ export default function OpportunitiesPage() {
               <select value={portal} onChange={(e) => setPortal(e.target.value)}
                 className="input-neon w-full rounded-xl px-3 py-2 text-sm appearance-none cursor-pointer">
                 {PORTALS.map((p) => (
-                  <option key={p.value} value={p.value} className="bg-dark-700">{p.label}</option>
+                  <option key={p.value} value={p.value} className="bg-gray-900">{p.label}</option>
                 ))}
               </select>
             </div>
@@ -160,9 +194,9 @@ export default function OpportunitiesPage() {
               <label className="text-xs text-slate-500 mb-1.5 block">Estado</label>
               <select value={state} onChange={(e) => setState(e.target.value)}
                 className="input-neon w-full rounded-xl px-3 py-2 text-sm appearance-none cursor-pointer">
-                <option value="">Todos</option>
-                {STATES.filter(Boolean).map((s) => (
-                  <option key={s} value={s} className="bg-dark-700">{s}</option>
+                <option value="" className="bg-gray-900">Todos</option>
+                {STATES.map((s) => (
+                  <option key={s} value={s} className="bg-gray-900">{s}</option>
                 ))}
               </select>
             </div>
@@ -170,14 +204,13 @@ export default function OpportunitiesPage() {
               <label className="text-xs text-slate-500 mb-1.5 block">Modalidade</label>
               <select value={modality} onChange={(e) => setModality(e.target.value)}
                 className="input-neon w-full rounded-xl px-3 py-2 text-sm appearance-none cursor-pointer">
-                <option value="">Todas</option>
-                {MODALITIES.filter(Boolean).map((m) => (
-                  <option key={m} value={m} className="bg-dark-700">{m}</option>
+                {MODALITIES.map((m) => (
+                  <option key={m.value} value={m.value} className="bg-gray-900">{m.label}</option>
                 ))}
               </select>
             </div>
             <div>
-              <label className="text-xs text-slate-500 mb-1.5 block">Valor mÃ­nimo (R$)</label>
+              <label className="text-xs text-slate-500 mb-1.5 block">Valor minimo (R$)</label>
               <input
                 type="number"
                 placeholder="Ex: 50000"
@@ -223,7 +256,7 @@ export default function OpportunitiesPage() {
           <h3 className="text-white font-semibold text-lg mb-2">Nenhum edital encontrado</h3>
           <p className="text-slate-500 text-sm mb-6 max-w-sm mx-auto">
             {total === 0 && !hasActiveFilters
-              ? 'Execute o script de sync para carregar editais do PNCP: npx tsx scripts/sync-pncp.ts'
+              ? 'Va em Admin > Integracoes e clique "Sincronizar Agora" no PNCP para carregar editais.'
               : 'Tente ajustar os filtros ou usar termos de busca diferentes.'}
           </p>
           {hasActiveFilters && (
@@ -257,17 +290,20 @@ export default function OpportunitiesPage() {
       {/* Pagination */}
       {!loading && totalPages > 1 && (
         <div className="flex items-center justify-between pt-2">
-          <p className="text-slate-500 text-sm">PÃ¡gina {page} de {totalPages}</p>
+          <p className="text-slate-500 text-sm">Pagina {page} de {totalPages}</p>
           <div className="flex items-center gap-2">
-            <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-white/10 text-slate-400 hover:text-white hover:border-white/20 disabled:opacity-40 disabled:cursor-not-allowed transition-all text-sm">
+            <button
+              onClick={() => handlePageChange(Math.max(1, page - 1))}
+              disabled={page === 1}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-white/10 text-slate-400 hover:text-white hover:border-white/20 disabled:opacity-40 disabled:cursor-not-allowed transition-all text-sm"
+            >
               <ChevronLeft size={16} /> Anterior
             </button>
             <div className="flex gap-1">
               {Array.from({ length: Math.min(totalPages, 7) }).map((_, i) => {
                 const p = i + 1
                 return (
-                  <button key={p} onClick={() => setPage(p)}
+                  <button key={p} onClick={() => handlePageChange(p)}
                     className={`w-8 h-8 rounded-lg text-sm font-semibold transition-all ${
                       page === p ? 'bg-neon text-black' : 'border border-white/10 text-slate-500 hover:text-white hover:border-white/20'
                     }`}>
@@ -276,9 +312,12 @@ export default function OpportunitiesPage() {
                 )
               })}
             </div>
-            <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-white/10 text-slate-400 hover:text-white hover:border-white/20 disabled:opacity-40 disabled:cursor-not-allowed transition-all text-sm">
-              PrÃ³xima <ChevronRight size={16} />
+            <button
+              onClick={() => handlePageChange(Math.min(totalPages, page + 1))}
+              disabled={page === totalPages}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-white/10 text-slate-400 hover:text-white hover:border-white/20 disabled:opacity-40 disabled:cursor-not-allowed transition-all text-sm"
+            >
+              Proxima <ChevronRight size={16} />
             </button>
           </div>
         </div>
@@ -286,4 +325,3 @@ export default function OpportunitiesPage() {
     </div>
   )
 }
-

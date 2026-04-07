@@ -37,6 +37,8 @@ export async function GET(request: NextRequest) {
       OR: [
         { title: { contains: search, mode: 'insensitive' } },
         { organ: { contains: search, mode: 'insensitive' } },
+        { city: { contains: search, mode: 'insensitive' } },
+        { state: { contains: search, mode: 'insensitive' } },
       ],
     })
   }
@@ -79,7 +81,7 @@ export async function GET(request: NextRequest) {
             select: { name: true, type: true },
           },
         },
-        orderBy: [{ openingDate: 'asc' }, { createdAt: 'desc' }],
+        orderBy: [{ createdAt: 'desc' }],
         skip: (page - 1) * limit,
         take: limit,
       }),

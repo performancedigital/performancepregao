@@ -16,7 +16,7 @@ interface PncpItem {
 }
 
 function formatDate(d: Date): string {
-  return d.toISOString().split('T')[0]
+  return d.toISOString().split('T')[0].replace(/-/g, '')
 }
 
 export class PncpConnector implements IConnector {
