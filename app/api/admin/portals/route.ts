@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const portals = await prisma.portal.findMany({
+    const allPortals = await prisma.portal.findMany({
       select: {
         id: true,
         name: true,
@@ -30,6 +30,14 @@ export async function GET(request: NextRequest) {
         _count: { select: { biddings: true } },
       },
       orderBy: { createdAt: 'desc' },
+    })
+
+    // Deduplicar por type, mantendo o mais recente
+    const seen = new Set<string>()
+    const portals = allPortals.filter((p) => {
+      if (seen.has(p.type)) return false
+      seen.add(p.type)
+      return true
     })
 
     return NextResponse.json({ data: portals })

@@ -84,7 +84,7 @@ export function BiddingCard({
         {(state || city) && (
           <div className="flex items-center gap-2 text-slate-400 text-xs">
             <MapPin size={12} className="flex-shrink-0" />
-            <span>{[city, state].filter(Boolean).join(' â€” ')}</span>
+            <span>{[city, state].filter(Boolean).join(', ')}</span>
           </div>
         )}
         <div

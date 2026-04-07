@@ -117,7 +117,7 @@ export default function IntegracoesPainel() {
 
   return (
     <div className="min-h-screen bg-black text-white p-6">
-      <h1 className="text-2xl font-bold text-cyan-400 mb-6">Integracoes de Dados</h1>
+      <h1 className="text-2xl font-bold text-cyan-400 mb-6">Integrações de Dados</h1>
 
       <div className="flex gap-4 mb-6">
         {(['sources', 'runs', 'dlq'] as const).map((t) => (
@@ -126,7 +126,7 @@ export default function IntegracoesPainel() {
             onClick={() => setTab(t)}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${tab === t ? 'bg-cyan-600 text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}
           >
-            {t === 'sources' ? 'Plataformas' : t === 'runs' ? 'Execucoes' : 'DLQ / Erros'}
+            {t === 'sources' ? 'Plataformas' : t === 'runs' ? 'Execuções' : 'DLQ / Erros'}
           </button>
         ))}
       </div>
@@ -158,7 +158,7 @@ export default function IntegracoesPainel() {
                     {s.dlqCount > 0 && <div className="text-red-400">DLQ: {s.dlqCount} itens</div>}
                   </div>
                 )}
-                {!s?.lastRun && <p className="text-xs text-gray-600 mb-2">Nenhuma execucao ainda</p>}
+                {!s?.lastRun && <p className="text-xs text-gray-600 mb-2">Nenhuma execução ainda</p>}
 
                 <button
                   onClick={() => handleSync(code)}
@@ -209,7 +209,7 @@ export default function IntegracoesPainel() {
                 </tr>
               ))}
               {runs.length === 0 && (
-                <tr><td colSpan={7} className="py-8 text-center text-gray-600">Nenhuma execucao registrada</td></tr>
+                <tr><td colSpan={7} className="py-8 text-center text-gray-600">Nenhuma execução registrada</td></tr>
               )}
             </tbody>
           </table>
