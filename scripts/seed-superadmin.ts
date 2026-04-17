@@ -39,18 +39,7 @@ async function main() {
         type: 'COMPRAS_GOV',
         isActive: true,
       },
-      {
-        name: 'BLL Compras',
-        url: 'https://bll.org.br',
-        type: 'BLL',
-        isActive: true,
-      },
-      {
-        name: 'Portais Municipais',
-        url: 'https://www.performancepregao.online',
-        type: 'MUNICIPAL',
-        isActive: true,
-      },
+      // BLL e MUNICIPAL removidos - não implementados
     ],
     skipDuplicates: true,
   })
