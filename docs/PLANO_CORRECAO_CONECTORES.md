@@ -416,9 +416,9 @@ curl "https://pncp.gov.br/api/consulta/v1/contratacoes/publicacao?dataInicial=20
 - [x] MUNICIPAL removido do enum PortalType
 - [x] API de portais atualizada (tipos válidos: PNCP, COMPRAS_GOV)
 - [x] Build passou sem erros
-- [ ] Deploy em produção
+- [x] Deploy em produção concluído
 
 ---
 
 *Documento criado em: 17/04/2026*
-*Última atualização: 17/04/2026 - Todas as correções implementadas e testadas. Pronto para deploy.*
+*Última atualização: 17/04/2026 - ✅ DEPLOY CONCLUÍDO - https://www.performancepregao.online*
