@@ -29,3 +29,10 @@ Os portais foram desativados no `IntegrationSource` e havia portais antigos (BLL
 - bll (requer scraping com VPS)
 - licitanet (stub não implementado)
 - MUNICIPAL (não existe implementação)
+
+## Status da Correção
+✅ **COMPLETADO** - 17/04/2026
+- Script SQL executado no banco de dados
+- 12 portais ativados
+- 2 portais desativados (BLL, Licitanet)
+- Deploy realizado com sucesso
