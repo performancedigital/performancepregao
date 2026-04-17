@@ -1,22 +1,37 @@
 import { IConnector, FetchResult, NormalizedBidding, ConnectorHealth } from '../core/connector.interface'
 
-const BASE_URL = 'https://pncp.gov.br/api/consulta/v1'
+const BASE_URL = 'https://dadosabertos.compras.gov.br'
 const PAGE_SIZE = 50
 
-interface PncpItem {
-  numeroControlePNCP: string
-  objetoCompra: string
-  orgaoEntidade?: { razaoSocial?: string }
-  unidadeOrgao?: { ufSigla?: string; municipioNome?: string }
-  modalidadeNome?: string
-  valorTotalEstimado?: string | number | null
-  dataAberturaProposta?: string | null
-  linkSistemaOrigem?: string | null
-  situacaoCompraNome?: string
+// Interface para resposta da API Compras.gov.br (módulo legado - pregões)
+interface ComprasGovPregao {
+  numero: string
+  objeto: string
+  orgao?: { nome?: string; cnpj?: string }
+  unidadeGestora?: { nome?: string; uf?: string; municipio?: string }
+  modalidade?: string
+  valorEstimado?: number
+  dataAberturaProposta?: string
+  situacao?: string
+  linkSistema?: string
+  codigoUasg?: string
+}
+
+// Interface para resposta da API Compras.gov.br (módulo legado - licitações)
+interface ComprasGovLicitacao {
+  numero: string
+  objeto: string
+  orgao?: { nome?: string }
+  unidadeGestora?: { nome?: string; uf?: string; municipio?: string }
+  modalidade?: string
+  valorEstimado?: number
+  dataAbertura?: string
+  situacao?: string
+  linkSistema?: string
 }
 
 function formatDate(d: Date): string {
-  return d.toISOString().split('T')[0].replace(/-/g, '')
+  return d.toISOString().split('T')[0] // YYYY-MM-DD
 }
 
 export class ComprasnetConnector implements IConnector {
@@ -30,32 +45,14 @@ export class ComprasnetConnector implements IConnector {
     const dataInicial = formatDate(windowStart)
     const dataFinal = formatDate(windowEnd)
     const allRecords: unknown[] = []
-    let pagina = 1
-    let totalPaginas = 1
 
-    do {
-      const url = `${BASE_URL}/contratacoes/proposta?dataInicial=${dataInicial}&dataFinal=${dataFinal}&pagina=${pagina}&tamanhoPagina=${PAGE_SIZE}`
-      const res = await fetch(url, {
-        headers: { 'Accept': 'application/json', 'User-Agent': 'PerformancePregao/1.0' },
-        signal: AbortSignal.timeout(15000),
-      })
+    // Buscar pregões (mais comuns)
+    const pregoes = await this.fetchPregoes(dataInicial, dataFinal)
+    allRecords.push(...pregoes)
 
-      if (!res.ok) {
-        if (res.status === 404) break
-        throw new Error(`ComprasNet HTTP ${res.status} pagina ${pagina}`)
-      }
-
-      const data = await res.json()
-      const items: PncpItem[] = data.data || data.content || (Array.isArray(data) ? data : [])
-      allRecords.push(...items)
-
-      totalPaginas = data.totalPaginas ?? data.totalPages ?? 1
-      pagina++
-
-      if (pagina > totalPaginas || items.length === 0) break
-
-      await new Promise((r) => setTimeout(r, 300))
-    } while (pagina <= totalPaginas)
+    // Buscar licitações
+    const licitacoes = await this.fetchLicitacoes(dataInicial, dataFinal)
+    allRecords.push(...licitacoes)
 
     return {
       records: allRecords,
@@ -64,30 +61,138 @@ export class ComprasnetConnector implements IConnector {
     }
   }
 
-  normalize(record: unknown): NormalizedBidding | null {
-    const item = record as PncpItem
-    if (!item.numeroControlePNCP) return null
+  private async fetchPregoes(dataInicial: string, dataFinal: string): Promise<ComprasGovPregao[]> {
+    const records: ComprasGovPregao[] = []
+    let pagina = 1
+    let hasMore = true
 
-    const situacao = (item.situacaoCompraNome || '').toLowerCase()
-    const status: 'OPEN' | 'CLOSED' =
-      situacao.includes('encerr') || situacao.includes('cancel') || situacao.includes('revog')
-        ? 'CLOSED'
-        : 'OPEN'
+    while (hasMore && pagina <= 10) {
+      try {
+        const url = `${BASE_URL}/modulo-legado/3_consultarPregoes?dataInicial=${dataInicial}&dataFinal=${dataFinal}&pagina=${pagina}`
+        const res = await fetch(url, {
+          headers: { 'Accept': 'application/json', 'User-Agent': 'PerformancePregao/1.0' },
+          signal: AbortSignal.timeout(20000),
+        })
 
-    return {
-      externalId: item.numeroControlePNCP,
-      portalCode: 'COMPRAS_GOV',
-      title: item.objetoCompra || 'Sem titulo',
-      organ: item.orgaoEntidade?.razaoSocial || 'Nao informado',
-      state: item.unidadeOrgao?.ufSigla ?? null,
-      city: item.unidadeOrgao?.municipioNome ?? null,
-      modality: item.modalidadeNome || 'Nao informado',
-      estimatedValue: item.valorTotalEstimado ? parseFloat(String(item.valorTotalEstimado)) : null,
-      openingDate: item.dataAberturaProposta ?? null,
-      pdfUrl: item.linkSistemaOrigem ?? null,
-      status,
-      rawPayload: record,
+        if (!res.ok) {
+          if (res.status === 404) break
+          console.error(`ComprasNet pregões pag ${pagina}: HTTP ${res.status}`)
+          break
+        }
+
+        const data = await res.json()
+        const items: ComprasGovPregao[] = data.resultado || data.data || data.content || []
+
+        if (items.length === 0) {
+          hasMore = false
+          break
+        }
+
+        records.push(...items)
+        pagina++
+
+        await new Promise((r) => setTimeout(r, 300))
+      } catch (err) {
+        console.error(`ComprasNet pregões erro pag ${pagina}:`, err)
+        break
+      }
     }
+
+    return records
+  }
+
+  private async fetchLicitacoes(dataInicial: string, dataFinal: string): Promise<ComprasGovLicitacao[]> {
+    const records: ComprasGovLicitacao[] = []
+    let pagina = 1
+    let hasMore = true
+
+    while (hasMore && pagina <= 10) {
+      try {
+        const url = `${BASE_URL}/modulo-legado/1_consultarLicitacao?dataInicial=${dataInicial}&dataFinal=${dataFinal}&pagina=${pagina}`
+        const res = await fetch(url, {
+          headers: { 'Accept': 'application/json', 'User-Agent': 'PerformancePregao/1.0' },
+          signal: AbortSignal.timeout(20000),
+        })
+
+        if (!res.ok) {
+          if (res.status === 404) break
+          console.error(`ComprasNet licitações pag ${pagina}: HTTP ${res.status}`)
+          break
+        }
+
+        const data = await res.json()
+        const items: ComprasGovLicitacao[] = data.resultado || data.data || data.content || []
+
+        if (items.length === 0) {
+          hasMore = false
+          break
+        }
+
+        records.push(...items)
+        pagina++
+
+        await new Promise((r) => setTimeout(r, 300))
+      } catch (err) {
+        console.error(`ComprasNet licitações erro pag ${pagina}:`, err)
+        break
+      }
+    }
+
+    return records
+  }
+
+  normalize(record: unknown): NormalizedBidding | null {
+    // Tenta normalizar como pregão primeiro
+    const pregao = record as ComprasGovPregao
+    if (pregao.numero && pregao.objeto) {
+      const situacao = (pregao.situacao || '').toLowerCase()
+      const status: 'OPEN' | 'CLOSED' =
+        situacao.includes('encerr') || situacao.includes('cancel') || situacao.includes('revog') || situacao.includes('concluíd')
+          ? 'CLOSED'
+          : 'OPEN'
+
+      return {
+        externalId: `COMPRASNET-PREGAO-${pregao.numero}-${pregao.codigoUasg || 'UNKNOWN'}`,
+        portalCode: 'COMPRAS_GOV',
+        title: pregao.objeto || 'Sem titulo',
+        organ: pregao.orgao?.nome || pregao.unidadeGestora?.nome || 'Nao informado',
+        state: pregao.unidadeGestora?.uf ?? null,
+        city: pregao.unidadeGestora?.municipio ?? null,
+        modality: pregao.modalidade || 'Pregao',
+        estimatedValue: pregao.valorEstimado || null,
+        openingDate: pregao.dataAberturaProposta || null,
+        pdfUrl: pregao.linkSistema || null,
+        status,
+        rawPayload: record,
+      }
+    }
+
+    // Tenta normalizar como licitação
+    const licitacao = record as ComprasGovLicitacao
+    if (licitacao.numero && licitacao.objeto) {
+      const situacao = (licitacao.situacao || '').toLowerCase()
+      const status: 'OPEN' | 'CLOSED' =
+        situacao.includes('encerr') || situacao.includes('cancel') || situacao.includes('revog') || situacao.includes('concluíd')
+          ? 'CLOSED'
+          : 'OPEN'
+
+      return {
+        externalId: `COMPRASNET-LIC-${licitacao.numero}`,
+        portalCode: 'COMPRAS_GOV',
+        title: licitacao.objeto || 'Sem titulo',
+        organ: licitacao.orgao?.nome || licitacao.unidadeGestora?.nome || 'Nao informado',
+        state: licitacao.unidadeGestora?.uf ?? null,
+        city: licitacao.unidadeGestora?.municipio ?? null,
+        modality: licitacao.modalidade || 'Licitacao',
+        estimatedValue: licitacao.valorEstimado || null,
+        openingDate: licitacao.dataAbertura || null,
+        pdfUrl: licitacao.linkSistema || null,
+        status,
+        rawPayload: record,
+      }
+    }
+
+    return null
   }
 
   validate(n: NormalizedBidding): boolean {
@@ -99,9 +204,18 @@ export class ComprasnetConnector implements IConnector {
     try {
       const today = formatDate(new Date())
       const res = await fetch(
-        `${BASE_URL}/contratacoes/proposta?dataInicial=${today}&dataFinal=${today}&pagina=1&tamanhoPagina=1`,
-        { signal: AbortSignal.timeout(8000) }
+        `${BASE_URL}/modulo-legado/3_consultarPregoes?dataInicial=${today}&dataFinal=${today}&pagina=1`,
+        {
+          headers: { 'Accept': 'application/json', 'User-Agent': 'PerformancePregao/1.0' },
+          signal: AbortSignal.timeout(15000)
+        }
       )
+
+      // 404 significa que não há dados, mas a API está funcionando
+      if (res.status === 404) {
+        return { ok: true, latencyMs: Date.now() - start, message: 'API OK (sem dados)' }
+      }
+
       return { ok: res.ok, latencyMs: Date.now() - start, message: `HTTP ${res.status}` }
     } catch (err) {
       return { ok: false, latencyMs: Date.now() - start, message: String(err) }

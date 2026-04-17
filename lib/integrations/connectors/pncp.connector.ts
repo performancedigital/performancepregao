@@ -120,11 +120,20 @@ export class PncpConnector implements IConnector {
     const start = Date.now()
     try {
       const today = formatDate(new Date())
-      // Usa modalidade Dispensa (8) para health check
+      // Usa Pregão Eletrônico (6) - modalidade mais comum
       const res = await fetch(
-        `${BASE_URL}/contratacoes/publicacao?dataInicial=${today}&dataFinal=${today}&codigoModalidadeContratacao=8&pagina=1&tamanhoPagina=1`,
-        { signal: AbortSignal.timeout(10000) }
+        `${BASE_URL}/contratacoes/publicacao?dataInicial=${today}&dataFinal=${today}&codigoModalidadeContratacao=6&pagina=1&tamanhoPagina=1`,
+        {
+          headers: { 'Accept': 'application/json', 'User-Agent': 'PerformancePregao/1.0' },
+          signal: AbortSignal.timeout(15000)
+        }
       )
+
+      // 404 significa que não há dados, mas a API está funcionando
+      if (res.status === 404) {
+        return { ok: true, latencyMs: Date.now() - start, message: 'API OK (sem dados)' }
+      }
+
       return { ok: res.ok, latencyMs: Date.now() - start, message: `HTTP ${res.status}` }
     } catch (err) {
       return { ok: false, latencyMs: Date.now() - start, message: String(err) }

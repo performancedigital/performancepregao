@@ -115,8 +115,8 @@ enum KanbanStage {
 enum PortalType {
   PNCP
   COMPRAS_GOV
-  BLL
-  MUNICIPAL
+  // BLL       // Removido - requer scraping com VPS
+  // MUNICIPAL // Removido - não implementado
 }
 
 model Alert {

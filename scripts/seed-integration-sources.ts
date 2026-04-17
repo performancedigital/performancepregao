@@ -4,9 +4,9 @@ const prisma = new PrismaClient()
 
 const sources = [
   { code: 'pncp', name: 'PNCP', baseUrl: 'https://pncp.gov.br/api/consulta/v1', authType: 'none', supportsIncremental: true, rateLimit: 60 },
-  { code: 'comprasnet', name: 'ComprasNet / Compras.gov', baseUrl: 'https://compras.dados.gov.br', authType: 'none', supportsIncremental: true, rateLimit: 30 },
-  { code: 'licitanet', name: 'Licitanet', baseUrl: 'https://licitanet.com.br', authType: 'none', supportsIncremental: false, rateLimit: 20 },
-  { code: 'bll', name: 'BLL Compras', baseUrl: 'https://bllcompras.com', authType: 'playwright', supportsIncremental: false, rateLimit: 10 },
+  { code: 'comprasnet', name: 'ComprasNet / Compras.gov', baseUrl: 'https://dadosabertos.compras.gov.br', authType: 'none', supportsIncremental: true, rateLimit: 30 },
+  // { code: 'licitanet', name: 'Licitanet', baseUrl: 'https://licitanet.com.br', authType: 'none', supportsIncremental: false, rateLimit: 20 }, // Removido - stub não implementado
+  // { code: 'bll', name: 'BLL Compras', baseUrl: 'https://bllcompras.com', authType: 'playwright', supportsIncremental: false, rateLimit: 10 }, // Removido - requer scraping com VPS
   { code: 'compras-rs', name: 'Compras RS', baseUrl: 'https://www.compras.rs.gov.br', authType: 'none', supportsIncremental: true, rateLimit: 30 },
   { code: 'compras-bahia', name: 'Compras Bahia', baseUrl: 'https://www.compras.ba.gov.br', authType: 'none', supportsIncremental: true, rateLimit: 30 },
   { code: 'compras-amazonas', name: 'Compras Amazonas', baseUrl: 'https://www.compras.am.gov.br', authType: 'none', supportsIncremental: true, rateLimit: 20 },

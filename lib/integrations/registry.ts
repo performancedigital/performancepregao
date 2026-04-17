@@ -2,7 +2,6 @@ import { IConnector } from './core/connector.interface'
 import { PncpConnector } from './connectors/pncp.connector'
 import { ComprasnetConnector } from './connectors/comprasnet.connector'
 import { LicitanetConnector } from './connectors/licitanet.connector'
-import { BllConnector } from './connectors/bll.connector'
 import { ComprasRsConnector } from './connectors/compras-rs.connector'
 import { ComprasBahiaConnector } from './connectors/compras-bahia.connector'
 import { ComprasAmazonasConnector } from './connectors/compras-amazonas.connector'
@@ -17,8 +16,8 @@ import { LicitacoesEConnector } from './connectors/licitacoes-e.connector'
 const registry: Record<string, IConnector> = {
   pncp: new PncpConnector(),
   comprasnet: new ComprasnetConnector(),
-  licitanet: new LicitanetConnector(),
-  bll: new BllConnector(),
+  // licitanet: desativado - stub não implementado
+  // bll: desativado - não possui API pública (requer scraping com VPS)
   'compras-rs': new ComprasRsConnector(),
   'compras-bahia': new ComprasBahiaConnector(),
   'compras-amazonas': new ComprasAmazonasConnector(),

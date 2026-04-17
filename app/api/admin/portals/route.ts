@@ -61,8 +61,7 @@ export async function POST(request: NextRequest) {
       const validPortalTypes: PortalType[] = [
         PortalType.PNCP,
         PortalType.COMPRAS_GOV,
-        PortalType.BLL,
-        PortalType.MUNICIPAL,
+        // BLL e MUNICIPAL removidos - não implementados
       ]
       
       if (!validPortalTypes.includes(type)) {
