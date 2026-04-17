@@ -23,7 +23,7 @@ async function upsertBidding(
   prismaClient: typeof prisma
 ) {
   const portal = await prismaClient.portal.findFirst({
-    where: { type: normalized.portalCode as 'PNCP' | 'COMPRAS_GOV' | 'BLL' | 'MUNICIPAL' },
+    where: { type: normalized.portalCode as 'PNCP' | 'COMPRAS_GOV' },
     select: { id: true },
   })
 
