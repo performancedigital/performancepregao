@@ -27,6 +27,54 @@ function fmtDate(d: Date | null): string {
   return d ? new Date(d).toLocaleString('pt-BR') : 'não informado'
 }
 
+type BiddingItemForChat = { description: string; quantity: { toString(): string } | null; unit: string | null }
+
+/**
+ * Monta um contexto estruturado e RICO do edital especifico para a IA.
+ * Usa todos os metadados disponiveis + itens. Se houver rawText (texto completo),
+ * ele e anexado ao final.
+ */
+function buildBiddingContext(
+  b: BiddingForChat & { aiSummary?: string | null; pdfUrl?: string | null; items?: BiddingItemForChat[] }
+): string {
+  const valor = formatCurrency(b.estimatedValue ? Number(b.estimatedValue) : null)
+  const local = [b.city, b.state].filter(Boolean).join(' / ') || 'não informado'
+  const prazoPassou = !!b.closingDate && new Date(b.closingDate).getTime() < Date.now()
+  const situacao = b.status === 'OPEN' && !prazoPassou ? 'Aberto para propostas' : 'Encerrado'
+  const url = pncpEditalUrl(b.externalId) || b.pdfUrl || null
+
+  const linhas: string[] = [
+    `Objeto/Título: ${b.title}`,
+    `Órgão comprador: ${b.organ}`,
+    `Modalidade: ${b.modality}`,
+    `Local: ${local}`,
+    `Valor estimado: ${valor}`,
+    `Abertura das propostas: ${fmtDate(b.openingDate)}`,
+    `Prazo final (encerramento): ${fmtDate(b.closingDate)}`,
+    `Situação atual: ${situacao}`,
+    `Identificador: ${b.externalId}`,
+  ]
+  if (url) linhas.push(`Link do edital completo no portal oficial: ${url}`)
+
+  if (b.aiSummary) {
+    linhas.push('', 'Resumo do edital:', b.aiSummary)
+  }
+
+  if (b.items && b.items.length > 0) {
+    linhas.push('', `Itens da licitação (${b.items.length}):`)
+    for (const it of b.items) {
+      const qty = it.quantity != null ? ` — qtd: ${it.quantity}${it.unit ? ' ' + it.unit : ''}` : ''
+      linhas.push(`- ${it.description}${qty}`)
+    }
+  }
+
+  if (b.rawText) {
+    linhas.push('', 'Texto completo do edital:', b.rawText)
+  }
+
+  return linhas.join('\n')
+}
+
 /** Codifica texto no protocolo de data-stream do Vercel AI SDK (consumido pelo ChatModal). */
 function toDataStream(text: string): string {
   return `0:${JSON.stringify(text)}\n`
@@ -132,6 +180,8 @@ export async function POST(request: NextRequest) {
         rawText: true, title: true, organ: true, modality: true,
         state: true, city: true, estimatedValue: true,
         openingDate: true, closingDate: true, status: true, externalId: true,
+        pdfUrl: true, aiSummary: true,
+        items: { select: { description: true, quantity: true, unit: true }, take: 80 },
       },
     })
 
@@ -169,16 +219,19 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const biddingContext = bidding.rawText
-      ? `Texto completo do edital:\n\n${bidding.rawText}`
-      : `Título: ${bidding.title}\nÓrgão: ${bidding.organ}`
+    const biddingContext = buildBiddingContext(bidding)
 
-    const systemPrompt = `Você é um especialista em licitações públicas brasileiras. Você está auxiliando um usuário a entender e analisar uma licitação específica.
+    const systemPrompt = `Você é um especialista em licitações públicas brasileiras, atuando como assistente da Brasília Consultoria em Licitações. Você está ajudando o usuário a entender e analisar UM edital específico — aquele descrito abaixo.
 
-Contexto da licitação:
+=== DADOS DESTE EDITAL ===
 ${biddingContext}
+=== FIM DOS DADOS ===
 
-Responda às perguntas do usuário de forma direta, objetiva e em português. Baseie suas respostas nas informações do edital fornecido.`
+Regras importantes:
+- Responda SEMPRE e SOMENTE com base nos dados deste edital acima. Não fale de outras licitações.
+- Seja direto, objetivo e responda em português do Brasil.
+- Se o usuário perguntar algo que NÃO está nos dados acima (ex.: exigências detalhadas de habilitação, atestados, anexos), seja honesto: diga que essa informação não consta nos dados resumidos disponíveis e oriente a consultar o edital completo no portal oficial${pncpEditalUrl(bidding.externalId) || bidding.pdfUrl ? ` (link: ${pncpEditalUrl(bidding.externalId) || bidding.pdfUrl})` : ''}.
+- NUNCA invente prazos, valores, exigências ou números que não estejam nos dados fornecidos.`
 
     const result = await streamText({
       model: getChatModel()!,

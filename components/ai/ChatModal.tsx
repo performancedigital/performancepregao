@@ -12,10 +12,10 @@ interface Message {
 }
 
 const STARTER_SUGGESTIONS = [
-  'Quais são os requisitos de habilitação?',
+  'Resuma este edital pra mim',
   'Qual é o prazo para envio de propostas?',
-  'Há exigência de atestado técnico?',
-  'A empresa precisa de alvará específico?',
+  'Qual o valor estimado e o objeto?',
+  'Quais itens estão sendo licitados?',
 ]
 
 /**
