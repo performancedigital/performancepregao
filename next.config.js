@@ -23,7 +23,7 @@ const nextConfig = {
     ]
   },
   experimental: {
-    serverComponentsExternalPackages: ['@prisma/client', 'bcryptjs'],
+    serverComponentsExternalPackages: ['@prisma/client', 'bcryptjs', 'pdf-parse', 'adm-zip'],
   },
 }
 

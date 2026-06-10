@@ -21,7 +21,7 @@ import { CSS } from '@dnd-kit/utilities'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Clock, GripVertical, Trash2, ExternalLink } from 'lucide-react'
-import { formatCurrency, getTimeUntil } from '@/lib/utils'
+import { formatCurrency, biddingDeadlineLabel, isBiddingOpen } from '@/lib/utils'
 import { cn } from '@/lib/utils'
 
 type Stage = 'LEAD' | 'AVALIANDO' | 'ENCAMINHADO' | 'VENCIDO'
@@ -33,6 +33,8 @@ interface KanbanItem {
   organ: string
   estimatedValue?: number | null
   openingDate?: string | null
+  closingDate?: string | null
+  status: string
   stage: Stage
   portal: string
   notes?: string | null
@@ -60,8 +62,11 @@ function KanbanCard({ item, isDragging, onDelete, onOpen }: {
     opacity: isSortableDragging ? 0.4 : 1,
   }
 
-  const timeUntil = getTimeUntil(item.openingDate)
-  const isUrgent = item.openingDate != null && new Date(item.openingDate).getTime() - Date.now() < 86400000 * 2
+  const timeUntil = biddingDeadlineLabel(item.status, item.closingDate)
+  const isUrgent =
+    isBiddingOpen(item.status, item.closingDate) &&
+    item.closingDate != null &&
+    new Date(item.closingDate).getTime() - Date.now() < 86400000 * 2
 
   return (
     <div
@@ -201,6 +206,8 @@ export function KanbanBoard({ onStatsChange }: KanbanBoardProps) {
           organ: s.bidding?.organ ?? '',
           estimatedValue: s.bidding?.estimatedValue ? Number(s.bidding.estimatedValue) : null,
           openingDate: s.bidding?.openingDate ?? null,
+          closingDate: s.bidding?.closingDate ?? null,
+          status: s.bidding?.status ?? 'OPEN',
           stage: s.stage as Stage,
           portal: s.bidding?.portal?.name ?? 'Portal',
           notes: s.notes,

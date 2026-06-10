@@ -42,6 +42,31 @@ export function getTimeUntil(date: Date | string | null | undefined): string {
 }
 
 /**
+ * Fonte UNICA de verdade para saber se um edital esta ABERTO.
+ * Encerrado = status CLOSED no banco OU o prazo final (closingDate) ja passou.
+ * Atencao: a data de ABERTURA no passado NAO encerra um edital — e normal um
+ * edital aberto ter a abertura de propostas no passado.
+ */
+export function isBiddingOpen(
+  status: string,
+  closingDate: Date | string | null | undefined
+): boolean {
+  if (status === 'CLOSED') return false
+  if (closingDate != null && getTimeUntil(closingDate) === 'Encerrado') return false
+  return true
+}
+
+/** Texto do prazo para exibir, sempre coerente com isBiddingOpen. */
+export function biddingDeadlineLabel(
+  status: string,
+  closingDate: Date | string | null | undefined
+): string {
+  if (!isBiddingOpen(status, closingDate)) return 'Encerrado'
+  if (closingDate == null) return 'Prazo em aberto'
+  return getTimeUntil(closingDate)
+}
+
+/**
  * Monta a URL publica do edital no portal PNCP a partir do numeroControlePNCP.
  * Ex.: "13170790000103-1-000014/2026" -> https://pncp.gov.br/app/editais/13170790000103/2026/14
  * Retorna null se o formato nao casar.

@@ -4,6 +4,10 @@ import { streamText, type CoreMessage } from 'ai'
 import { getChatModel, isAiConfigured } from '@/lib/ai'
 import { withAuth, trackTokenUsage } from '@/lib/api-security'
 import { pncpEditalUrl, formatCurrency } from '@/lib/utils'
+import { ensureBiddingRawText } from '@/lib/edital-text'
+
+export const runtime = 'nodejs'
+export const maxDuration = 60
 
 // Estimativa de tokens por mensagem
 const TOKENS_PER_MESSAGE = 500
@@ -29,13 +33,64 @@ function fmtDate(d: Date | null): string {
 
 type BiddingItemForChat = { description: string; quantity: { toString(): string } | null; unit: string | null }
 
+// Teto de caracteres do edital enviados a IA por requisicao (controla tokens/min).
+const MAX_CONTEXT_CHARS = Number(process.env.EDITAL_CONTEXT_CHARS) || 18000
+
+/**
+ * Seleciona um TRECHO relevante do edital para caber no limite de tokens:
+ * sempre inclui o cabecalho (objeto/preambulo) e, conforme a pergunta do usuario,
+ * janelas ao redor dos termos pertinentes (habilitacao, garantia, prazos, etc.).
+ */
+function selectEditalExcerpt(rawText: string, question: string, max: number): string {
+  if (rawText.length <= max) return rawText
+  const headLen = Math.min(9000, Math.floor(max * 0.5))
+  const head = rawText.slice(0, headLen)
+  const lower = rawText.toLowerCase()
+  const q = (question || '').toLowerCase()
+
+  const groups: string[][] = []
+  if (/habilita|documenta|atestad|certid|qualifica|exig|comprova|capacidade/.test(q))
+    groups.push(['habilita', 'qualifica', 'atestad', 'certidão', 'certidao', 'comprova', 'documentos de'])
+  if (/garantia/.test(q)) groups.push(['garantia'])
+  if (/recurso|impugn/.test(q)) groups.push(['recurso', 'impugn'])
+  if (/pagamento|reajust|fatur/.test(q)) groups.push(['pagamento', 'reajust', 'faturamento'])
+  if (/prazo|entrega|execu|vig[êe]ncia/.test(q)) groups.push(['prazo de execu', 'entrega', 'vigência', 'vigencia'])
+  if (/penalidade|multa|san[çc]/.test(q)) groups.push(['penalidade', 'multa', 'sanç', 'sanc'])
+  if (/objeto/.test(q)) groups.push(['objeto'])
+
+  const windows: string[] = []
+  const positions: number[] = []
+  let budget = max - head.length
+  for (const terms of groups) {
+    if (budget <= 0) break
+    for (const t of terms) {
+      const idx = lower.indexOf(t, headLen)
+      if (idx >= 0 && !positions.some((p) => Math.abs(p - idx) < 3000)) {
+        positions.push(idx)
+        const start = Math.max(0, idx - 600)
+        const win = rawText.slice(start, start + 3500)
+        windows.push('\n[...trecho do edital...]\n' + win)
+        budget -= win.length
+        break
+      }
+    }
+  }
+
+  let result = head + windows.join('')
+  if (result.length < max) {
+    result += '\n[...]\n' + rawText.slice(headLen, headLen + (max - result.length))
+  }
+  return result.slice(0, max)
+}
+
 /**
  * Monta um contexto estruturado e RICO do edital especifico para a IA.
  * Usa todos os metadados disponiveis + itens. Se houver rawText (texto completo),
- * ele e anexado ao final.
+ * um trecho relevante (conforme a pergunta) e anexado ao final.
  */
 function buildBiddingContext(
-  b: BiddingForChat & { aiSummary?: string | null; pdfUrl?: string | null; items?: BiddingItemForChat[] }
+  b: BiddingForChat & { aiSummary?: string | null; pdfUrl?: string | null; items?: BiddingItemForChat[] },
+  question: string
 ): string {
   const valor = formatCurrency(b.estimatedValue ? Number(b.estimatedValue) : null)
   const local = [b.city, b.state].filter(Boolean).join(' / ') || 'não informado'
@@ -69,7 +124,7 @@ function buildBiddingContext(
   }
 
   if (b.rawText) {
-    linhas.push('', 'Texto completo do edital:', b.rawText)
+    linhas.push('', 'Trecho do edital (texto extraido do PDF oficial):', selectEditalExcerpt(b.rawText, question, MAX_CONTEXT_CHARS))
   }
 
   return linhas.join('\n')
@@ -219,7 +274,20 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const biddingContext = buildBiddingContext(bidding)
+    // Garante o texto completo do edital (extrai o PDF do PNCP na 1a vez).
+    // Best-effort: se falhar/expirar, segue com os metadados que ja temos.
+    if (!bidding.rawText || bidding.rawText.length <= 200) {
+      try {
+        const extracted = await ensureBiddingRawText(biddingId)
+        if (extracted) bidding.rawText = extracted
+      } catch {
+        /* segue sem o texto completo */
+      }
+    }
+
+    const lastUser = [...messages].reverse().find((m) => m.role === 'user')
+    const question = typeof lastUser?.content === 'string' ? lastUser.content : ''
+    const biddingContext = buildBiddingContext(bidding, question)
 
     const systemPrompt = `Você é um especialista em licitações públicas brasileiras, atuando como assistente da Brasília Consultoria em Licitações. Você está ajudando o usuário a entender e analisar UM edital específico — aquele descrito abaixo.
 

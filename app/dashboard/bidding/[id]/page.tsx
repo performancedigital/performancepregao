@@ -4,7 +4,7 @@ import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Bot } from 'lucide-react'
 import { ChatModal } from '@/components/ai/ChatModal'
-import { resolveEditalUrl, getTimeUntil } from '@/lib/utils'
+import { resolveEditalUrl, getTimeUntil, isBiddingOpen } from '@/lib/utils'
 
 interface Bidding {
   id: string
@@ -40,6 +40,10 @@ export default function BiddingDetailPage() {
         setLoading(false)
       })
       .catch(() => setLoading(false))
+
+    // Em segundo plano: baixa o PDF do edital e extrai o texto para a IA.
+    // Idempotente no servidor (so baixa na 1a vez). Erros sao ignorados.
+    fetch(`/api/biddings/${id}/extract`, { method: 'POST' }).catch(() => {})
   }, [id])
 
   if (loading) {
@@ -57,9 +61,8 @@ export default function BiddingDetailPage() {
 
   const fmt = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 
-  // Status real: encerrado se o banco marca CLOSED ou o prazo final ja passou
-  const prazoPassou = bidding.closingDate != null && getTimeUntil(bidding.closingDate) === 'Encerrado'
-  const isOpen = bidding.status === 'OPEN' && !prazoPassou
+  // Status real (mesma fonte unica usada nos cards da lista)
+  const isOpen = isBiddingOpen(bidding.status, bidding.closingDate)
   const editalUrl = resolveEditalUrl(bidding.pdfUrl, bidding.externalId, bidding.portal?.type)
 
   return (

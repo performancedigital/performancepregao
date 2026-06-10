@@ -2,7 +2,7 @@
 
 import { GlassCard } from '@/components/ui/GlassCard'
 import { NeonButton } from '@/components/ui/NeonButton'
-import { formatCurrency, getTimeUntil } from '@/lib/utils'
+import { formatCurrency, isBiddingOpen, biddingDeadlineLabel } from '@/lib/utils'
 import { Building2, Clock, MapPin, Star, Zap } from 'lucide-react'
 import { useState } from 'react'
 
@@ -40,19 +40,17 @@ export function BiddingCard({
   isSaved = false,
 }: BiddingCardProps) {
   const [saved, setSaved] = useState(isSaved)
-  // O que importa para o licitante e o PRAZO FINAL (encerramento da proposta).
-  // Se nao houver prazo, cai para a data de abertura como referencia.
-  const deadline = closingDate ?? openingDate
-  const timeUntil = getTimeUntil(deadline)
-
-  // Encerrado = status CLOSED no banco OU prazo final ja passou
-  const isExpired = status === 'CLOSED' || (deadline != null && getTimeUntil(deadline) === 'Encerrado')
-  const isOpen = status === 'OPEN' && !isExpired
+  // Fonte unica de verdade (mesma logica do detalhe do edital):
+  // encerrado so se status CLOSED ou o prazo FINAL (closingDate) ja passou.
+  // A abertura no passado NAO encerra.
+  const isOpen = isBiddingOpen(status, closingDate)
+  const isExpired = !isOpen
+  const timeUntil = biddingDeadlineLabel(status, closingDate)
 
   const isUrgent =
     isOpen &&
-    deadline != null &&
-    new Date(deadline).getTime() - Date.now() < 86400000 * 2 // menos de 2 dias para o prazo
+    closingDate != null &&
+    new Date(closingDate).getTime() - Date.now() < 86400000 * 2 // menos de 2 dias para o prazo final
 
   function handleSave() {
     setSaved((prev) => !prev)
