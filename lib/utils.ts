@@ -55,17 +55,20 @@ export function pncpEditalUrl(externalId: string | null | undefined): string | n
 }
 
 /**
- * Resolve o melhor link para ver o edital: o link de origem, se houver,
- * senao a URL publica do PNCP construida a partir do numero de controle.
+ * Resolve o melhor link para ver o edital.
+ * Para PNCP, prioriza a pagina PUBLICA do PNCP (sem login, com os documentos) —
+ * o linkSistemaOrigem costuma apontar para sistemas do orgao com tela de login.
+ * Para outros portais, usa o link de origem.
  */
 export function resolveEditalUrl(
   pdfUrl: string | null | undefined,
   externalId: string | null | undefined,
   portalType?: string | null
 ): string | null {
-  if (pdfUrl) return pdfUrl
-  if (portalType === 'PNCP' || !portalType) return pncpEditalUrl(externalId)
-  return null
+  if (portalType === 'PNCP' || !portalType) {
+    return pncpEditalUrl(externalId) ?? pdfUrl ?? null
+  }
+  return pdfUrl ?? null
 }
 
 export function truncateText(text: string, maxLength: number): string {
