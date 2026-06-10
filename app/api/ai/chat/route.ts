@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { streamText, type CoreMessage } from 'ai'
-import { google } from '@ai-sdk/google'
+import { googleAI, AI_MODEL, isAiConfigured } from '@/lib/ai'
 import { withAuth, trackTokenUsage } from '@/lib/api-security'
 
 // Estimativa de tokens por mensagem
@@ -10,9 +10,9 @@ const MAX_MESSAGES = 20
 
 export async function POST(request: NextRequest) {
   return withAuth(request, async (ctx) => {
-    if (!process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
+    if (!isAiConfigured()) {
       return NextResponse.json(
-        { error: 'IA não configurada. Adicione GOOGLE_GENERATIVE_AI_API_KEY nas variáveis de ambiente.' },
+        { error: 'IA não configurada. Adicione GEMINI_API_KEY nas variáveis de ambiente.' },
         { status: 503 }
       )
     }
@@ -90,7 +90,7 @@ ${biddingContext}
 Responda às perguntas do usuário de forma direta, objetiva e em português. Baseie suas respostas nas informações do edital fornecido.`
 
     const result = await streamText({
-      model: google('gemini-1.5-flash'),
+      model: googleAI(AI_MODEL),
       system: systemPrompt,
       messages,
     })

@@ -1,10 +1,11 @@
 import { prisma } from '@/lib/prisma'
-import { PortalType } from '@prisma/client'
+import { Prisma, PortalType } from '@prisma/client'
+import { randomUUID } from 'crypto'
 import { IConnector, NormalizedBidding } from './connector.interface'
 import { sha256 } from './crypto'
 
-const MAX_RETRIES = 3
 const OVERLAP_MINUTES = 5
+const BATCH_SIZE = 200 // linhas por INSERT em lote
 
 interface RunSyncResult {
   runId: string
@@ -15,51 +16,26 @@ interface RunSyncResult {
   errorMessage?: string
 }
 
-async function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms))
+type Prepared = { normalized: NormalizedBidding; record: unknown; hash: string }
+
+/**
+ * Upsert em lote de licitacoes via INSERT ... ON CONFLICT.
+ * Substitui o upsert registro-a-registro (lento por causa da latencia ao banco
+ * remoto) por poucas queries — essencial para caber no limite do serverless.
+ */
+async function bulkUpsertBiddings(rows: Prepared[], portalId: string, now: Date): Promise<void> {
+  for (let i = 0; i < rows.length; i += BATCH_SIZE) {
+    const values = rows.slice(i, i + BATCH_SIZE).map(({ normalized: n }) => Prisma.sql`(${randomUUID()}, ${n.externalId}, ${portalId}, ${n.title}, ${n.organ}, ${n.state ?? null}, ${n.city ?? null}, ${n.modality}, ${n.estimatedValue ?? null}, ${n.openingDate ? new Date(n.openingDate) : null}, ${n.closingDate ? new Date(n.closingDate) : null}, ${n.pdfUrl ?? null}, ${n.status}::"BiddingStatus", ${now}, ${now})`)
+    await prisma.$executeRaw(Prisma.sql`INSERT INTO "Bidding" ("id","externalId","portalId","title","organ","state","city","modality","estimatedValue","openingDate","closingDate","pdfUrl","status","createdAt","updatedAt") VALUES ${Prisma.join(values)} ON CONFLICT ("externalId") DO UPDATE SET "title"=EXCLUDED."title","organ"=EXCLUDED."organ","state"=EXCLUDED."state","city"=EXCLUDED."city","modality"=EXCLUDED."modality","estimatedValue"=EXCLUDED."estimatedValue","openingDate"=EXCLUDED."openingDate","closingDate"=EXCLUDED."closingDate","pdfUrl"=EXCLUDED."pdfUrl","status"=EXCLUDED."status","updatedAt"=EXCLUDED."updatedAt"`)
+  }
 }
 
-async function upsertBidding(
-  normalized: NormalizedBidding,
-  prismaClient: typeof prisma
-) {
-  const portal = await prismaClient.portal.findFirst({
-    where: { type: normalized.portalCode as PortalType },
-    select: { id: true },
-  })
-
-  if (!portal) {
-    throw new Error(`Portal nao encontrado para code: ${normalized.portalCode}`)
+/** Upsert em lote dos eventos brutos (auditoria + dedup por hash do payload). */
+async function bulkUpsertRawEvents(rows: Prepared[], sourceId: string, runId: string, now: Date): Promise<void> {
+  for (let i = 0; i < rows.length; i += BATCH_SIZE) {
+    const values = rows.slice(i, i + BATCH_SIZE).map(({ normalized: n, record, hash }) => Prisma.sql`(${randomUUID()}, ${sourceId}, ${runId}, ${n.externalId}, ${hash}, ${JSON.stringify(record)}::jsonb, 'PROCESSED'::"EventStatus", ${now}, ${now}, ${now})`)
+    await prisma.$executeRaw(Prisma.sql`INSERT INTO "IntegrationRawEvent" ("id","sourceId","runId","externalId","payloadHash","rawPayload","status","processedAt","createdAt","updatedAt") VALUES ${Prisma.join(values)} ON CONFLICT ("sourceId","externalId") DO UPDATE SET "payloadHash"=EXCLUDED."payloadHash","rawPayload"=EXCLUDED."rawPayload","status"=EXCLUDED."status","processedAt"=EXCLUDED."processedAt","updatedAt"=EXCLUDED."updatedAt"`)
   }
-
-  await prismaClient.bidding.upsert({
-    where: { externalId: normalized.externalId },
-    create: {
-      externalId: normalized.externalId,
-      portalId: portal.id,
-      title: normalized.title,
-      organ: normalized.organ,
-      state: normalized.state ?? null,
-      city: normalized.city ?? null,
-      modality: normalized.modality,
-      estimatedValue: normalized.estimatedValue ?? null,
-      openingDate: normalized.openingDate ? new Date(normalized.openingDate) : null,
-      pdfUrl: normalized.pdfUrl ?? null,
-      status: normalized.status,
-    },
-    update: {
-      title: normalized.title,
-      organ: normalized.organ,
-      state: normalized.state ?? null,
-      city: normalized.city ?? null,
-      modality: normalized.modality,
-      estimatedValue: normalized.estimatedValue ?? null,
-      openingDate: normalized.openingDate ? new Date(normalized.openingDate) : null,
-      pdfUrl: normalized.pdfUrl ?? null,
-      status: normalized.status,
-      updatedAt: new Date(),
-    },
-  })
 }
 
 export async function runSync(
@@ -108,98 +84,70 @@ export async function runSync(
   let lastError: string | undefined
 
   try {
-    let hasMore = true
+    const result = await connector.fetchIncremental(cursor, windowStart, windowEnd)
+    totalFetched = result.records.length
 
-    while (hasMore) {
-      const result = await connector.fetchIncremental(cursor, windowStart, windowEnd)
-      totalFetched += result.records.length
+    // 1) Normaliza e calcula o hash de tudo em memoria
+    const prepared: { normalized: NormalizedBidding; record: unknown; hash: string }[] = []
+    for (const record of result.records) {
+      let normalized: NormalizedBidding | null = null
+      try {
+        normalized = connector.normalize(record)
+        if (!normalized || !connector.validate(normalized)) continue
+      } catch {
+        totalErrors++
+        continue
+      }
+      prepared.push({ normalized, record, hash: sha256(record) })
+    }
 
-      for (const record of result.records) {
-        let normalized: NormalizedBidding | null = null
-        try {
-          normalized = connector.normalize(record)
-          if (!normalized || !connector.validate(normalized)) {
-            continue
-          }
-        } catch {
-          totalErrors++
-          continue
-        }
+    // 2) Pre-carrega os rawEvents existentes em lote (evita 1 query por registro)
+    const existingHashes = new Map<string, string>()
+    const externalIds = prepared.map((p) => p.normalized.externalId)
+    for (let i = 0; i < externalIds.length; i += 1000) {
+      const rows = await prisma.integrationRawEvent.findMany({
+        where: { sourceId: source.id, externalId: { in: externalIds.slice(i, i + 1000) } },
+        select: { externalId: true, payloadHash: true },
+      })
+      for (const r of rows) existingHashes.set(r.externalId, r.payloadHash)
+    }
 
-        const hash = sha256(record)
+    // 3) So processa registros novos ou alterados (re-vistos sao ignorados sem custo)
+    const toProcess = prepared.filter(
+      (p) => existingHashes.get(p.normalized.externalId) !== p.hash
+    )
 
-        const existing = await prisma.integrationRawEvent.findUnique({
-          where: { sourceId_externalId: { sourceId: source.id, externalId: normalized.externalId } },
-        })
-
-        if (existing && existing.payloadHash === hash) {
-          await prisma.integrationRawEvent.update({
-            where: { id: existing.id },
-            data: { status: 'SKIPPED', updatedAt: new Date() },
-          })
-          continue
-        }
-
-        let retries = 0
-        let success = false
-
-        while (retries < MAX_RETRIES && !success) {
-          try {
-            await upsertBidding(normalized, prisma)
-
-            if (existing) {
-              await prisma.integrationRawEvent.update({
-                where: { id: existing.id },
-                data: {
-                  payloadHash: hash,
-                  rawPayload: record as object,
-                  status: 'PROCESSED',
-                  processedAt: new Date(),
-                  updatedAt: new Date(),
-                },
-              })
-            } else {
-              await prisma.integrationRawEvent.create({
-                data: {
-                  sourceId: source.id,
-                  runId: run.id,
-                  externalId: normalized.externalId,
-                  payloadHash: hash,
-                  rawPayload: record as object,
-                  status: 'PROCESSED',
-                  processedAt: new Date(),
-                },
-              })
-            }
-
-            totalUpserted++
-            success = true
-          } catch (err) {
-            retries++
-            if (retries < MAX_RETRIES) {
-              await sleep(500 * Math.pow(2, retries))
-            } else {
-              totalErrors++
-              lastError = err instanceof Error ? err.message : String(err)
-              await prisma.integrationDeadLetter.create({
-                data: {
-                  sourceId: source.id,
-                  runId: run.id,
-                  externalId: normalized.externalId,
-                  rawPayload: record as object,
-                  errorMessage: lastError,
-                  retryCount: retries,
-                },
-              })
-            }
-          }
-        }
+    // 4) Upsert em lote (rapido o suficiente para o serverless)
+    if (toProcess.length > 0) {
+      const portalCode = toProcess[0].normalized.portalCode as PortalType
+      const portal = await prisma.portal.findFirst({
+        where: { type: portalCode },
+        select: { id: true },
+      })
+      if (!portal) {
+        throw new Error(`Portal nao encontrado para code: ${portalCode}`)
       }
 
-      if (result.nextCursor) {
-        cursor = result.nextCursor
-      } else {
-        hasMore = false
+      const now = new Date()
+      try {
+        await bulkUpsertBiddings(toProcess, portal.id, now)
+        await bulkUpsertRawEvents(toProcess, source.id, run.id, now)
+        totalUpserted = toProcess.length
+      } catch (err) {
+        totalErrors = toProcess.length
+        lastError = err instanceof Error ? err.message : String(err)
+        await prisma.integrationDeadLetter
+          .create({
+            data: {
+              sourceId: source.id,
+              runId: run.id,
+              externalId: `BATCH-${run.id}`,
+              rawPayload: {},
+              errorMessage: lastError,
+              retryCount: 0,
+            },
+          })
+          .catch(() => {})
       }
     }
 

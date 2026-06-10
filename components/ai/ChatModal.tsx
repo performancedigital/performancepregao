@@ -18,34 +18,27 @@ const STARTER_SUGGESTIONS = [
   'A empresa precisa de alvará específico?',
 ]
 
-const MOCK_RESPONSES: Record<string, string> = {
-  default:
-    'Com base na análise do edital, posso identificar que trata-se de um pregão eletrônico do tipo menor preço. Os documentos de habilitação exigidos incluem: Certidão Negativa de Débitos Federais, FGTS em dia, Certidão de Regularidade Trabalhista (CNDT) e Certidão Negativa de Falência. O prazo para proposta é de 8 dias úteis a partir da publicação.',
-  habilitacao:
-    'Os requisitos de habilitação jurídica e fiscal exigem: (1) CNPJ ativo com no mínimo 2 anos, (2) Certidão Negativa de Débitos Federais e Estaduais, (3) CRF/FGTS em dia, (4) CNDT (Certidão Negativa de Débitos Trabalhistas), (5) Certidão Negativa de Falência emitida pela Comarca da sede. Para habilitação técnica, é exigido pelo menos 1 atestado de capacidade técnica compatível com o objeto.',
-  prazo: 'O prazo para envio de propostas é de 8 (oito) dias úteis contados a partir da data de publicação. A sessão pública de abertura ocorrerá às 10h no horário de Brasília. Propostas enviadas após o prazo serão automaticamente desclassificadas pelo sistema.',
-  atestado:
-    'Sim, o edital exige atestado(s) de capacidade técnica fornecido(s) por pessoa jurídica de direito público ou privado, comprovando que a empresa licitante prestou ou está prestando serviços compatíveis com o objeto da licitação, em pelo menos 50% das quantidades cotadas. O atestado deve conter: CNPJ do emitente, nome do responsável, cargo e assinatura.',
-  alvara:
-    'O edital não menciona exigência de alvará específico além dos documentos usuais. Porém, é necessário apresentar Alvará de Funcionamento ou Licença Municipal em vigor, emitido pela Prefeitura do município sede da empresa.',
-}
-
-function getResponse(message: string): string {
-  const lower = message.toLowerCase()
-  if (lower.includes('habilita') || lower.includes('documento')) return MOCK_RESPONSES.habilitacao
-  if (lower.includes('prazo') || lower.includes('proposta') || lower.includes('data')) return MOCK_RESPONSES.prazo
-  if (lower.includes('atestado') || lower.includes('técnico') || lower.includes('capacidade')) return MOCK_RESPONSES.atestado
-  if (lower.includes('alvará') || lower.includes('licença')) return MOCK_RESPONSES.alvara
-  return MOCK_RESPONSES.default
+/**
+ * Faz parse do protocolo de data-stream do Vercel AI SDK (toDataStreamResponse).
+ * Linhas de texto vem no formato: 0:"trecho de texto"
+ */
+function extractTextDelta(line: string): string | null {
+  if (!line.startsWith('0:')) return null
+  try {
+    return JSON.parse(line.slice(2))
+  } catch {
+    return null
+  }
 }
 
 interface ChatModalProps {
   isOpen: boolean
   onClose: () => void
+  biddingId: string
   biddingTitle?: string
 }
 
-export function ChatModal({ isOpen, onClose, biddingTitle }: ChatModalProps) {
+export function ChatModal({ isOpen, onClose, biddingId, biddingTitle }: ChatModalProps) {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '0',
@@ -69,8 +62,8 @@ export function ChatModal({ isOpen, onClose, biddingTitle }: ChatModalProps) {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, isTyping])
 
-  function sendMessage(text: string) {
-    if (!text.trim()) return
+  async function sendMessage(text: string) {
+    if (!text.trim() || isTyping) return
 
     const userMsg: Message = {
       id: Date.now().toString(),
@@ -79,24 +72,68 @@ export function ChatModal({ isOpen, onClose, biddingTitle }: ChatModalProps) {
       timestamp: new Date(),
     }
 
+    // Historico enviado para a IA (apenas role/content), incluindo a nova mensagem
+    const history = [...messages, userMsg]
+      .filter((m) => m.id !== '0') // remove a saudacao inicial
+      .map((m) => ({ role: m.role, content: m.content }))
+
     setMessages((prev) => [...prev, userMsg])
     setInput('')
     setIsTyping(true)
 
-    // Simulate AI response delay
-    setTimeout(
-      () => {
-        const aiMsg: Message = {
-          id: (Date.now() + 1).toString(),
-          role: 'assistant',
-          content: getResponse(text),
-          timestamp: new Date(),
+    const aiId = (Date.now() + 1).toString()
+
+    try {
+      const res = await fetch('/api/ai/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ biddingId, messages: history }),
+      })
+
+      if (!res.ok || !res.body) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || 'Falha ao consultar a IA')
+      }
+
+      // Cria a mensagem do assistente vazia e vai preenchendo conforme o stream chega
+      setMessages((prev) => [
+        ...prev,
+        { id: aiId, role: 'assistant', content: '', timestamp: new Date() },
+      ])
+      setIsTyping(false)
+
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() ?? ''
+        for (const line of lines) {
+          const delta = extractTextDelta(line)
+          if (delta) {
+            setMessages((prev) =>
+              prev.map((m) => (m.id === aiId ? { ...m, content: m.content + delta } : m))
+            )
+          }
         }
-        setMessages((prev) => [...prev, aiMsg])
-        setIsTyping(false)
-      },
-      800 + Math.random() * 800
-    )
+      }
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Erro inesperado'
+      setIsTyping(false)
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: aiId,
+          role: 'assistant',
+          content: `⚠️ ${message}`,
+          timestamp: new Date(),
+        },
+      ])
+    }
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {

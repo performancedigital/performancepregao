@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { streamText } from 'ai'
-import { google } from '@ai-sdk/google'
+import { googleAI, AI_MODEL, isAiConfigured } from '@/lib/ai'
 import { withAuth, trackTokenUsage } from '@/lib/api-security'
 
 // Estimativa de tokens para resumo
@@ -9,9 +9,9 @@ const RESUME_TOKENS = 2000
 
 export async function POST(request: NextRequest) {
   return withAuth(request, async (ctx) => {
-    if (!process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
+    if (!isAiConfigured()) {
       return NextResponse.json(
-        { error: 'IA não configurada. Adicione GOOGLE_GENERATIVE_AI_API_KEY nas variáveis de ambiente.' },
+        { error: 'IA não configurada. Adicione GEMINI_API_KEY nas variáveis de ambiente.' },
         { status: 503 }
       )
     }
@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
     const userMessage = bidding.rawText ?? `Edital: ${bidding.title} - ${bidding.organ}`
 
     const result = await streamText({
-      model: google('gemini-1.5-flash'),
+      model: googleAI(AI_MODEL),
       system:
         'Você é um especialista em licitações públicas brasileiras. Analise o edital e forneça um resumo estruturado em português com: 1) Objeto principal, 2) Valor estimado, 3) Requisitos de habilitação mais importantes, 4) Prazos críticos, 5) Pontos de atenção. Seja direto e objetivo.',
       messages: [{ role: 'user', content: userMessage }],

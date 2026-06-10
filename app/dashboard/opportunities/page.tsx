@@ -66,7 +66,7 @@ export default function OpportunitiesPage() {
     const mo = overrides?.modality ?? modality
     const mv = overrides?.minValue ?? minValue
 
-    const params = new URLSearchParams({ page: String(p), limit: String(PAGE_SIZE), onlyActive: 'false' })
+    const params = new URLSearchParams({ page: String(p), limit: String(PAGE_SIZE), onlyActive: 'true' })
     if (s) params.set('search', s)
     if (po) params.set('portal', po)
     if (st) params.set('state', st)

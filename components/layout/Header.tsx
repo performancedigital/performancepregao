@@ -2,7 +2,7 @@
 
 import { useSession, signOut } from 'next-auth/react'
 import { usePathname } from 'next/navigation'
-import { Bell, ChevronDown, LogOut, Menu, Settings, User } from 'lucide-react'
+import { Bell, ChevronDown, LogOut, Menu } from 'lucide-react'
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
 
@@ -37,28 +37,13 @@ export function Header({ onMobileMenuClick }: HeaderProps) {
     .join('')
     .toUpperCase()
 
-  const mockNotifications = [
-    {
-      id: 1,
-      text: '12 novos editais encontrados para "TI"',
-      time: 'há 5 min',
-      read: false,
-    },
-    {
-      id: 2,
-      text: 'Edital PNCP-2024-001 abre em 2 horas',
-      time: 'há 1h',
-      read: false,
-    },
-    {
-      id: 3,
-      text: 'Resumo IA disponível para 3 editais',
-      time: 'há 3h',
-      read: true,
-    },
-  ]
+  const [notifications, setNotifications] = useState<{ id: number; text: string; time: string; read: boolean }[]>([])
 
-  const unreadCount = mockNotifications.filter((n) => !n.read).length
+  const unreadCount = notifications.filter((n) => !n.read).length
+
+  function markAllRead() {
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })))
+  }
 
   return (
     <header className="sticky top-0 z-20 flex items-center justify-between h-16 px-6 bg-dark-800/80 backdrop-blur-md border-b border-white/10">
@@ -106,12 +91,19 @@ export function Header({ onMobileMenuClick }: HeaderProps) {
             <div className="absolute right-0 top-12 w-80 glass rounded-2xl border border-white/10 shadow-[0_20px_60px_rgba(0,0,0,0.5)] overflow-hidden">
               <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
                 <span className="text-white font-semibold text-sm">Notificações</span>
-                <button className="text-neon text-xs hover:text-neon/80 transition-colors">
-                  Marcar tudo como lido
-                </button>
+                {unreadCount > 0 && (
+                  <button onClick={markAllRead} className="text-neon text-xs hover:text-neon/80 transition-colors">
+                    Marcar tudo como lido
+                  </button>
+                )}
               </div>
               <div className="divide-y divide-white/5">
-                {mockNotifications.map((notif) => (
+                {notifications.length === 0 && (
+                  <div className="px-4 py-8 text-center text-slate-500 text-xs">
+                    Nenhuma notificação no momento
+                  </div>
+                )}
+                {notifications.map((notif) => (
                   <div
                     key={notif.id}
                     className={cn(
@@ -165,16 +157,6 @@ export function Header({ onMobileMenuClick }: HeaderProps) {
                 <p className="text-slate-500 text-xs">{session?.user?.email}</p>
               </div>
               <div className="py-1">
-                <button className="w-full flex items-center gap-3 px-4 py-2.5 text-slate-400 hover:text-white hover:bg-white/5 transition-all text-sm">
-                  <User size={15} />
-                  Meu perfil
-                </button>
-                <button className="w-full flex items-center gap-3 px-4 py-2.5 text-slate-400 hover:text-white hover:bg-white/5 transition-all text-sm">
-                  <Settings size={15} />
-                  Configurações
-                </button>
-              </div>
-              <div className="border-t border-white/10 py-1">
                 <button
                   onClick={() => signOut({ callbackUrl: '/login' })}
                   className="w-full flex items-center gap-3 px-4 py-2.5 text-red-400 hover:bg-red-400/10 transition-all text-sm"

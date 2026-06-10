@@ -19,7 +19,7 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { useEffect, useState } from 'react'
-import { Bell, Clock, GripVertical, MoreHorizontal, Plus } from 'lucide-react'
+import { Clock, GripVertical } from 'lucide-react'
 import { formatCurrency, getTimeUntil } from '@/lib/utils'
 import { cn } from '@/lib/utils'
 
@@ -78,9 +78,6 @@ function KanbanCard({ item, isDragging }: { item: KanbanItem; isDragging?: boole
           </h4>
           <p className="text-slate-500 text-[10px] mt-1 truncate">{item.organ}</p>
         </div>
-        <button className="flex-shrink-0 p-1 text-slate-600 hover:text-slate-400 transition-colors rounded">
-          <MoreHorizontal size={14} />
-        </button>
       </div>
 
       {item.notes && (
@@ -91,14 +88,9 @@ function KanbanCard({ item, isDragging }: { item: KanbanItem; isDragging?: boole
 
       <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-white/5">
         <span className="text-neon font-bold text-xs">{formatCurrency(item.estimatedValue)}</span>
-        <div className="flex items-center gap-2">
-          <button className="p-1 text-slate-600 hover:text-yellow-400 transition-colors">
-            <Bell size={12} />
-          </button>
-          <div className={cn('flex items-center gap-1 text-[10px] font-medium', isUrgent ? 'text-red-400' : 'text-slate-500')}>
-            <Clock size={10} />
-            {timeUntil}
-          </div>
+        <div className={cn('flex items-center gap-1 text-[10px] font-medium', isUrgent ? 'text-red-400' : 'text-slate-500')}>
+          <Clock size={10} />
+          {timeUntil}
         </div>
       </div>
     </div>
@@ -118,12 +110,7 @@ function KanbanColumn({ column, items }: { column: typeof COLUMNS[number]; items
             {items.length}
           </span>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="text-slate-600 text-[10px]">{formatCurrency(totalValue)}</span>
-          <button className={cn('p-1 rounded-lg transition-colors', column.color, 'hover:opacity-80')}>
-            <Plus size={14} />
-          </button>
-        </div>
+        <span className="text-slate-600 text-[10px]">{formatCurrency(totalValue)}</span>
       </div>
 
       <div className="flex-1 space-y-2.5 min-h-[200px]">
@@ -209,6 +196,9 @@ export function KanbanBoard({ onStatsChange }: KanbanBoardProps) {
     setActiveId(null)
     if (!over) return
 
+    // Snapshot para reverter caso a persistencia falhe
+    const snapshot = items
+
     const activeItem = items.find((i) => i.id === active.id)
     if (!activeItem) return
 
@@ -226,14 +216,18 @@ export function KanbanBoard({ onStatsChange }: KanbanBoardProps) {
       }
     }
 
-    // Persist stage to API
+    // Persiste o novo estagio; reverte a UI se falhar (evita estado inconsistente)
     try {
-      await fetch(`/api/saved/${activeItem.id}`, {
+      const res = await fetch(`/api/saved/${activeItem.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ stage: activeItem.stage }),
       })
-    } catch {}
+      if (!res.ok) throw new Error('falha ao salvar')
+    } catch {
+      setItems(snapshot)
+      alert('Nao foi possivel mover o cartao. Tente novamente.')
+    }
   }
 
   if (loading) {

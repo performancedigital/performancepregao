@@ -47,6 +47,7 @@ model Bidding {
   modality       String
   estimatedValue Decimal?      @db.Decimal(15, 2)
   openingDate    DateTime?
+  closingDate    DateTime?
   status         BiddingStatus @default(OPEN)
   pdfUrl         String?
   rawText        String?       @db.Text
@@ -55,6 +56,9 @@ model Bidding {
   savedBy        SavedBidding[]
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
+
+  @@index([status, closingDate])
+  @@index([status, openingDate])
 }
 
 model BiddingItem {

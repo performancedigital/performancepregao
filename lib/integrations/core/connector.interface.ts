@@ -20,6 +20,7 @@ export interface NormalizedBidding {
   modality: string
   estimatedValue?: number | null
   openingDate?: string | null
+  closingDate?: string | null
   pdfUrl?: string | null
   status: 'OPEN' | 'CLOSED'
   rawPayload: unknown

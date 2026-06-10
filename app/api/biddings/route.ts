@@ -19,7 +19,8 @@ export async function GET(request: NextRequest) {
       status: BiddingStatus.OPEN,
       ...(onlyActive
         ? {
-            OR: [{ openingDate: null }, { openingDate: { gte: new Date() } }],
+            // "Ativo" = ainda aberto para proposta (prazo de encerramento no futuro)
+            OR: [{ closingDate: null }, { closingDate: { gte: new Date() } }],
           }
         : {}),
     }

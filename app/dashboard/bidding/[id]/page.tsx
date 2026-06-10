@@ -147,7 +147,7 @@ export default function BiddingDetailPage() {
         </div>
       </div>
 
-      <ChatModal isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} biddingTitle={bidding.title} />
+      <ChatModal isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} biddingId={bidding.id} biddingTitle={bidding.title} />
     </div>
   )
 }
