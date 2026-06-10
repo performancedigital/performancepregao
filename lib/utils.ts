@@ -41,6 +41,33 @@ export function getTimeUntil(date: Date | string | null | undefined): string {
   return `Faltam ${minutes}min`
 }
 
+/**
+ * Monta a URL publica do edital no portal PNCP a partir do numeroControlePNCP.
+ * Ex.: "13170790000103-1-000014/2026" -> https://pncp.gov.br/app/editais/13170790000103/2026/14
+ * Retorna null se o formato nao casar.
+ */
+export function pncpEditalUrl(externalId: string | null | undefined): string | null {
+  if (!externalId) return null
+  const m = externalId.match(/^(\d{14})-\d+-(\d+)\/(\d{4})$/)
+  if (!m) return null
+  const [, cnpj, seq, ano] = m
+  return `https://pncp.gov.br/app/editais/${cnpj}/${ano}/${Number(seq)}`
+}
+
+/**
+ * Resolve o melhor link para ver o edital: o link de origem, se houver,
+ * senao a URL publica do PNCP construida a partir do numero de controle.
+ */
+export function resolveEditalUrl(
+  pdfUrl: string | null | undefined,
+  externalId: string | null | undefined,
+  portalType?: string | null
+): string | null {
+  if (pdfUrl) return pdfUrl
+  if (portalType === 'PNCP' || !portalType) return pncpEditalUrl(externalId)
+  return null
+}
+
 export function truncateText(text: string, maxLength: number): string {
   if (text.length <= maxLength) return text
   return text.slice(0, maxLength).trimEnd() + '...'

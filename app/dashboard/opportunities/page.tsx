@@ -37,6 +37,7 @@ interface Bidding {
   modality: string
   estimatedValue: number | null
   openingDate: string | null
+  closingDate: string | null
   status: string
   portal: { name: string; type: string }
 }
@@ -279,6 +280,7 @@ export default function OpportunitiesPage() {
               modality={b.modality}
               estimatedValue={b.estimatedValue ?? undefined}
               openingDate={b.openingDate ?? undefined}
+              closingDate={b.closingDate ?? undefined}
               portal={portalDisplay(b)}
               status={b.status}
               onView={(id) => router.push(`/dashboard/bidding/${id}`)}

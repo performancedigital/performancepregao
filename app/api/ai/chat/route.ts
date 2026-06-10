@@ -3,20 +3,96 @@ import { prisma } from '@/lib/prisma'
 import { streamText, type CoreMessage } from 'ai'
 import { googleAI, AI_MODEL, isAiConfigured } from '@/lib/ai'
 import { withAuth, trackTokenUsage } from '@/lib/api-security'
+import { pncpEditalUrl, formatCurrency } from '@/lib/utils'
 
 // Estimativa de tokens por mensagem
 const TOKENS_PER_MESSAGE = 500
 const MAX_MESSAGES = 20
 
+type BiddingForChat = {
+  rawText: string | null
+  title: string
+  organ: string
+  modality: string
+  state: string | null
+  city: string | null
+  estimatedValue: { toString(): string } | null
+  openingDate: Date | null
+  closingDate: Date | null
+  status: string
+  externalId: string
+}
+
+function fmtDate(d: Date | null): string {
+  return d ? new Date(d).toLocaleString('pt-BR') : 'não informado'
+}
+
+/** Codifica texto no protocolo de data-stream do Vercel AI SDK (consumido pelo ChatModal). */
+function toDataStream(text: string): string {
+  return `0:${JSON.stringify(text)}\n`
+}
+
+/**
+ * Resposta "por enquanto" sem IA: usa apenas os dados REAIS do edital (sem inventar).
+ * Vira IA completa assim que GEMINI_API_KEY for configurada.
+ */
+function buildGroundedAnswer(b: BiddingForChat, question: string): string {
+  const q = (question || '').toLowerCase()
+  const url = pncpEditalUrl(b.externalId)
+  const valor = formatCurrency(b.estimatedValue ? Number(b.estimatedValue) : null)
+  const local = [b.city, b.state].filter(Boolean).join(' / ') || 'não informado'
+  const wants = (terms: string[]) => terms.some((t) => q.includes(t))
+  const linhas: string[] = []
+  let answered = false
+
+  if (wants(['prazo', 'encerr', 'quando', 'data', 'fecha', 'limite'])) {
+    linhas.push(`📅 **Abertura das propostas:** ${fmtDate(b.openingDate)}`)
+    linhas.push(`⏰ **Prazo final (encerramento):** ${fmtDate(b.closingDate)}`)
+    answered = true
+  }
+  if (wants(['valor', 'preço', 'preco', 'estimad', 'quanto'])) {
+    linhas.push(`💰 **Valor estimado:** ${valor}`)
+    answered = true
+  }
+  if (wants(['órgão', 'orgao', 'quem', 'comprador', 'contratante'])) {
+    linhas.push(`🏛️ **Órgão:** ${b.organ}`)
+    answered = true
+  }
+  if (wants(['modalidade', 'pregão', 'pregao', 'dispensa'])) {
+    linhas.push(`📋 **Modalidade:** ${b.modality}`)
+    answered = true
+  }
+  if (wants(['onde', 'estado', 'cidade', 'local', ' uf'])) {
+    linhas.push(`📍 **Local:** ${local}`)
+    answered = true
+  }
+  if (wants(['aberto', 'status', 'situação', 'situacao', 'vigente', 'ativo'])) {
+    const prazoPassou = !!b.closingDate && new Date(b.closingDate).getTime() < Date.now()
+    const aberto = b.status === 'OPEN' && !prazoPassou
+    linhas.push(`📌 **Situação:** ${aberto ? 'Aberto para propostas' : 'Encerrado'}`)
+    answered = true
+  }
+
+  if (!answered) {
+    linhas.push('Resumo do que sei sobre este edital:')
+    linhas.push('')
+    linhas.push(`• **Objeto:** ${b.title}`)
+    linhas.push(`• **Órgão:** ${b.organ}`)
+    linhas.push(`• **Modalidade:** ${b.modality}`)
+    linhas.push(`• **Local:** ${local}`)
+    linhas.push(`• **Valor estimado:** ${valor}`)
+    linhas.push(`• **Abertura:** ${fmtDate(b.openingDate)}`)
+    linhas.push(`• **Prazo final:** ${fmtDate(b.closingDate)}`)
+  }
+
+  linhas.push('')
+  if (url) linhas.push(`📄 Edital completo (habilitação, exigências, itens) no portal: ${url}`)
+  linhas.push('_Para análise jurídica detalhada do documento por IA, o administrador pode ativar a IA (chave Gemini)._')
+  return linhas.join('\n')
+}
+
 export async function POST(request: NextRequest) {
   return withAuth(request, async (ctx) => {
-    if (!isAiConfigured()) {
-      return NextResponse.json(
-        { error: 'IA não configurada. Adicione GEMINI_API_KEY nas variáveis de ambiente.' },
-        { status: 503 }
-      )
-    }
-
     let body: { biddingId: string; messages: CoreMessage[] }
     try {
       body = await request.json()
@@ -50,10 +126,37 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const bidding = await prisma.bidding.findUnique({
+      where: { id: biddingId },
+      select: {
+        rawText: true, title: true, organ: true, modality: true,
+        state: true, city: true, estimatedValue: true,
+        openingDate: true, closingDate: true, status: true, externalId: true,
+      },
+    })
+
+    if (!bidding) {
+      return NextResponse.json(
+        { error: 'Bidding not found' },
+        { status: 404 }
+      )
+    }
+
+    // "Por enquanto": sem chave de IA, responde com os dados reais do edital
+    if (!isAiConfigured()) {
+      const lastUser = [...messages].reverse().find((m) => m.role === 'user')
+      const question = typeof lastUser?.content === 'string' ? lastUser.content : ''
+      const answer = buildGroundedAnswer(bidding as BiddingForChat, question)
+      return new NextResponse(toDataStream(answer), {
+        status: 200,
+        headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+      })
+    }
+
     // Verificar rate limiting de tokens
     const estimatedTokens = messages.length * TOKENS_PER_MESSAGE
     const tokenCheck = await trackTokenUsage(ctx.userId, ctx.planType, estimatedTokens)
-    
+
     if (!tokenCheck.allowed) {
       return NextResponse.json(
         {
@@ -63,18 +166,6 @@ export async function POST(request: NextRequest) {
           tokensLimit: tokenCheck.tokensLimit,
         },
         { status: 429 }
-      )
-    }
-
-    const bidding = await prisma.bidding.findUnique({
-      where: { id: biddingId },
-      select: { rawText: true, title: true, organ: true },
-    })
-
-    if (!bidding) {
-      return NextResponse.json(
-        { error: 'Bidding not found' },
-        { status: 404 }
       )
     }
 

@@ -15,6 +15,7 @@ interface BiddingCardProps {
   modality: string
   estimatedValue?: number | null
   openingDate?: string | null
+  closingDate?: string | null
   portal: string
   status: string
   onSave?: (id: string) => void
@@ -31,6 +32,7 @@ export function BiddingCard({
   modality,
   estimatedValue,
   openingDate,
+  closingDate,
   portal,
   status,
   onSave,
@@ -38,17 +40,19 @@ export function BiddingCard({
   isSaved = false,
 }: BiddingCardProps) {
   const [saved, setSaved] = useState(isSaved)
-  const timeUntil = getTimeUntil(openingDate)
-  
-  // Status baseado no campo status do banco + data
-  const isExpired = status === 'CLOSED' || timeUntil === 'Encerrado'
+  // O que importa para o licitante e o PRAZO FINAL (encerramento da proposta).
+  // Se nao houver prazo, cai para a data de abertura como referencia.
+  const deadline = closingDate ?? openingDate
+  const timeUntil = getTimeUntil(deadline)
+
+  // Encerrado = status CLOSED no banco OU prazo final ja passou
+  const isExpired = status === 'CLOSED' || (deadline != null && getTimeUntil(deadline) === 'Encerrado')
   const isOpen = status === 'OPEN' && !isExpired
 
   const isUrgent =
     isOpen &&
-    openingDate !== null &&
-    openingDate !== undefined &&
-    new Date(openingDate).getTime() - Date.now() < 86400000 * 2 // less than 2 days
+    deadline != null &&
+    new Date(deadline).getTime() - Date.now() < 86400000 * 2 // menos de 2 dias para o prazo
 
   function handleSave() {
     setSaved((prev) => !prev)

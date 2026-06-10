@@ -165,7 +165,7 @@ export function ChatModal({ isOpen, onClose, biddingId, biddingTitle }: ChatModa
               <p className="text-white font-semibold text-sm">Converse com o Edital IA</p>
               <div className="flex items-center gap-1.5">
                 <div className="w-1.5 h-1.5 bg-green-400 rounded-full" />
-                <p className="text-slate-500 text-[11px]">Gemini Pro — Pronto</p>
+                <p className="text-slate-500 text-[11px]">Assistente do edital — Pronto</p>
               </div>
             </div>
           </div>

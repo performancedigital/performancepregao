@@ -4,6 +4,7 @@ import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Bot } from 'lucide-react'
 import { ChatModal } from '@/components/ai/ChatModal'
+import { resolveEditalUrl, getTimeUntil } from '@/lib/utils'
 
 interface Bidding {
   id: string
@@ -15,6 +16,7 @@ interface Bidding {
   modality: string
   estimatedValue: number | null
   openingDate: string | null
+  closingDate: string | null
   status: string
   pdfUrl: string | null
   aiSummary: string | null
@@ -55,6 +57,11 @@ export default function BiddingDetailPage() {
 
   const fmt = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 
+  // Status real: encerrado se o banco marca CLOSED ou o prazo final ja passou
+  const prazoPassou = bidding.closingDate != null && getTimeUntil(bidding.closingDate) === 'Encerrado'
+  const isOpen = bidding.status === 'OPEN' && !prazoPassou
+  const editalUrl = resolveEditalUrl(bidding.pdfUrl, bidding.externalId, bidding.portal?.type)
+
   return (
     <div className="min-h-screen bg-black text-white p-6 max-w-4xl mx-auto">
       <button
@@ -67,8 +74,12 @@ export default function BiddingDetailPage() {
       <div className="bg-white/5 border border-white/10 rounded-2xl p-8">
         <div className="flex items-start justify-between gap-4 mb-6">
           <h1 className="text-xl font-bold text-white flex-1">{bidding.title}</h1>
-          <span className="px-3 py-1 rounded-full text-xs font-medium bg-green-500/20 text-green-400 border border-green-500/30 shrink-0">
-            {bidding.status === 'OPEN' ? 'Aberto' : bidding.status}
+          <span className={`px-3 py-1 rounded-full text-xs font-medium shrink-0 border ${
+            isOpen
+              ? 'bg-green-500/20 text-green-400 border-green-500/30'
+              : 'bg-slate-700/40 text-slate-400 border-slate-600/40'
+          }`}>
+            {isOpen ? 'Aberto' : 'Encerrado'}
           </span>
         </div>
 
@@ -103,6 +114,15 @@ export default function BiddingDetailPage() {
             </p>
           </div>
           <div className="bg-white/5 rounded-lg p-3">
+            <p className="text-gray-500 text-xs mb-1">Prazo final (encerramento)</p>
+            <p className={`text-sm font-medium ${isOpen ? 'text-cyan-400' : 'text-slate-500'}`}>
+              {bidding.closingDate ? new Date(bidding.closingDate).toLocaleString('pt-BR') : 'Nao informado'}
+              {bidding.closingDate && isOpen && (
+                <span className="block text-[11px] text-slate-500 font-normal">{getTimeUntil(bidding.closingDate)}</span>
+              )}
+            </p>
+          </div>
+          <div className="bg-white/5 rounded-lg p-3">
             <p className="text-gray-500 text-xs mb-1">Portal</p>
             <p className="text-white text-sm font-medium">{bidding.portal?.name || '-'}</p>
           </div>
@@ -116,14 +136,14 @@ export default function BiddingDetailPage() {
         )}
 
         <div className="flex gap-3 flex-wrap">
-          {bidding.pdfUrl && (
+          {editalUrl && (
             <a
-              href={bidding.pdfUrl}
+              href={editalUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-lg text-sm transition-colors"
             >
-              Ver Edital Original
+              Ver Edital no Portal
             </a>
           )}
 
