@@ -14,9 +14,9 @@ import {
 
 const QUICK_LINKS = [
   { label: 'Gestão de Usuários', href: '/admin/users', desc: 'Ver e gerenciar todos os usuários, planos e status.', icon: Users },
-  { label: 'Portais Monitorados', href: '/admin/portals', desc: 'Status dos scrapers, logs de coleta e configuração.', icon: Globe },
-  { label: 'Logs do Sistema', href: '/admin/logs', desc: 'Erros de coleta, falhas de IA e eventos de pagamento.', icon: Activity },
-  { label: 'IA & Modelos', href: '/admin/ai', desc: 'Configurar prompts, modelos Gemini e limites de tokens.', icon: Bot },
+  { label: 'Portais Monitorados', href: '/admin/portals', desc: 'Status dos portais e health check da coleta.', icon: Globe },
+  { label: 'Integrações', href: '/admin/integrations', desc: 'Sincronização PNCP, execuções e fila de erros (DLQ).', icon: Activity },
+  { label: 'IA & Modelos', href: '/admin/ai', desc: 'Configurar a chave do Gemini para o chat e resumos.', icon: Bot },
 ]
 
 export default function AdminPage() {
@@ -30,7 +30,7 @@ export default function AdminPage() {
     { label: 'Usuários Totais', value: metrics?.totalUsers ?? '...', sub: `${metrics?.activeUsers ?? 0} ativos`, icon: Users, color: 'text-neon' },
     { label: 'Usuários Ativos', value: metrics?.activeUsers ?? '...', sub: `${metrics?.totalUsers ? Math.round((metrics.activeUsers / metrics.totalUsers) * 100) : 0}% do total`, icon: Activity, color: 'text-green-400' },
     { label: 'Editais Coletados', value: metrics?.totalBiddings?.toLocaleString('pt-BR') ?? '...', sub: 'Total no banco', icon: Database, color: 'text-neon-purple' },
-    { label: 'Portais Ativos', value: metrics?.activePortals ?? '...', sub: 'PNCP, Compras.gov, BLL, Municipal', icon: Globe, color: 'text-yellow-400' },
+    { label: 'Portais Ativos', value: metrics?.activePortals ?? '...', sub: 'Fonte: PNCP (nacional)', icon: Globe, color: 'text-yellow-400' },
   ]
 
   return (

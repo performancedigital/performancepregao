@@ -1,11 +1,11 @@
 import { IConnector } from './core/connector.interface'
 import { PncpConnector } from './connectors/pncp.connector'
-import { ComprasnetConnector } from './connectors/comprasnet.connector'
 
+// PNCP e a fonte unica e autoritativa (agrega federal + estadual + municipal,
+// Lei 14.133). ComprasNet/dados-abertos foi removido: endpoint legado vazio e
+// o moderno apenas duplicava os dados do PNCP.
 const registry: Record<string, IConnector> = {
   pncp: new PncpConnector(),
-  comprasnet: new ComprasnetConnector(),
-  // Demais portais estaduais removidos por falta de API pública confiável.
 }
 
 export function getConnector(sourceCode: string): IConnector {

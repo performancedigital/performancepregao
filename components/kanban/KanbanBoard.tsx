@@ -19,7 +19,8 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { useEffect, useState } from 'react'
-import { Clock, GripVertical } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { Clock, GripVertical, Trash2, ExternalLink } from 'lucide-react'
 import { formatCurrency, getTimeUntil } from '@/lib/utils'
 import { cn } from '@/lib/utils'
 
@@ -44,7 +45,12 @@ const COLUMNS: { id: Stage; label: string; color: string; bg: string; border: st
   { id: 'VENCIDO', label: 'Vencido', color: 'text-green-400', bg: 'bg-green-400/10', border: 'border-green-400/20' },
 ]
 
-function KanbanCard({ item, isDragging }: { item: KanbanItem; isDragging?: boolean }) {
+function KanbanCard({ item, isDragging, onDelete, onOpen }: {
+  item: KanbanItem
+  isDragging?: boolean
+  onDelete?: (id: string) => void
+  onOpen?: (biddingId: string) => void
+}) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging: isSortableDragging } =
     useSortable({ id: item.id })
 
@@ -62,22 +68,35 @@ function KanbanCard({ item, isDragging }: { item: KanbanItem; isDragging?: boole
       ref={setNodeRef}
       style={style}
       className={cn(
-        'backdrop-blur-md bg-white/5 border border-white/10 rounded-xl p-4 cursor-grab active:cursor-grabbing transition-all duration-200 group',
+        'backdrop-blur-md bg-white/5 border border-white/10 rounded-xl p-4 transition-all duration-200 group',
         isDragging && 'shadow-neon border-neon/40 rotate-1',
         'hover:border-white/20 hover:bg-white/[0.07]'
       )}
     >
       <div className="flex items-start gap-2">
-        <div {...attributes} {...listeners} className="mt-0.5 flex-shrink-0 text-slate-600 hover:text-slate-400 transition-colors">
+        <div {...attributes} {...listeners} className="mt-0.5 flex-shrink-0 text-slate-600 hover:text-slate-400 transition-colors cursor-grab active:cursor-grabbing" title="Arrastar">
           <GripVertical size={14} />
         </div>
-        <div className="flex-1 min-w-0">
+        <button
+          type="button"
+          onClick={() => onOpen?.(item.biddingId)}
+          className="flex-1 min-w-0 text-left cursor-pointer"
+          title="Abrir edital"
+        >
           <p className="text-[10px] text-neon font-mono mb-1.5">{item.portal}</p>
           <h4 className="text-white text-xs font-semibold leading-snug line-clamp-2 group-hover:text-neon transition-colors">
             {item.title}
           </h4>
           <p className="text-slate-500 text-[10px] mt-1 truncate">{item.organ}</p>
-        </div>
+        </button>
+        <button
+          type="button"
+          onClick={() => onDelete?.(item.id)}
+          className="flex-shrink-0 p-1 text-slate-600 hover:text-red-400 hover:bg-red-400/10 rounded transition-colors opacity-0 group-hover:opacity-100"
+          title="Remover da disputa"
+        >
+          <Trash2 size={13} />
+        </button>
       </div>
 
       {item.notes && (
@@ -88,16 +107,31 @@ function KanbanCard({ item, isDragging }: { item: KanbanItem; isDragging?: boole
 
       <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-white/5">
         <span className="text-neon font-bold text-xs">{formatCurrency(item.estimatedValue)}</span>
-        <div className={cn('flex items-center gap-1 text-[10px] font-medium', isUrgent ? 'text-red-400' : 'text-slate-500')}>
-          <Clock size={10} />
-          {timeUntil}
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => onOpen?.(item.biddingId)}
+            className="text-slate-600 hover:text-neon transition-colors"
+            title="Abrir edital"
+          >
+            <ExternalLink size={12} />
+          </button>
+          <div className={cn('flex items-center gap-1 text-[10px] font-medium', isUrgent ? 'text-red-400' : 'text-slate-500')}>
+            <Clock size={10} />
+            {timeUntil}
+          </div>
         </div>
       </div>
     </div>
   )
 }
 
-function KanbanColumn({ column, items }: { column: typeof COLUMNS[number]; items: KanbanItem[] }) {
+function KanbanColumn({ column, items, onDelete, onOpen }: {
+  column: typeof COLUMNS[number]
+  items: KanbanItem[]
+  onDelete?: (id: string) => void
+  onOpen?: (biddingId: string) => void
+}) {
   const totalValue = items.reduce((sum, i) => sum + (i.estimatedValue ?? 0), 0)
 
   return (
@@ -116,7 +150,7 @@ function KanbanColumn({ column, items }: { column: typeof COLUMNS[number]; items
       <div className="flex-1 space-y-2.5 min-h-[200px]">
         <SortableContext items={items.map((i) => i.id)} strategy={verticalListSortingStrategy}>
           {items.map((item) => (
-            <KanbanCard key={item.id} item={item} />
+            <KanbanCard key={item.id} item={item} onDelete={onDelete} onOpen={onOpen} />
           ))}
         </SortableContext>
         {items.length === 0 && (
@@ -134,9 +168,27 @@ export interface KanbanBoardProps {
 }
 
 export function KanbanBoard({ onStatsChange }: KanbanBoardProps) {
+  const router = useRouter()
   const [items, setItems] = useState<KanbanItem[]>([])
   const [activeId, setActiveId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+
+  function openItem(biddingId: string) {
+    router.push(`/dashboard/bidding/${biddingId}`)
+  }
+
+  async function deleteItem(id: string) {
+    if (!confirm('Remover este edital da sua disputa?')) return
+    const snapshot = items
+    setItems((prev) => prev.filter((i) => i.id !== id)) // otimista
+    try {
+      const res = await fetch(`/api/saved/${id}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error('falha ao remover')
+    } catch {
+      setItems(snapshot)
+      alert('Nao foi possivel remover. Tente novamente.')
+    }
+  }
 
   useEffect(() => {
     fetch('/api/saved')
@@ -253,7 +305,7 @@ export function KanbanBoard({ onStatsChange }: KanbanBoardProps) {
     <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd}>
       <div className="flex gap-4 overflow-x-auto pb-4">
         {COLUMNS.map((column) => (
-          <KanbanColumn key={column.id} column={column} items={getItemsByStage(column.id)} />
+          <KanbanColumn key={column.id} column={column} items={getItemsByStage(column.id)} onDelete={deleteItem} onOpen={openItem} />
         ))}
       </div>
       <DragOverlay>

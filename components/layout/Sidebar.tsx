@@ -7,7 +7,6 @@ import {
   BarChart2,
   LayoutDashboard,
   LogOut,
-  Scale,
   Search,
   Zap,
   X,
@@ -31,11 +30,6 @@ const navItems = [
     label: 'Análise',
     href: '/dashboard/analise',
     icon: BarChart2,
-  },
-  {
-    label: 'Jurídico',
-    href: '/dashboard/juridico',
-    icon: Scale,
   },
   {
     label: 'Upgrade',

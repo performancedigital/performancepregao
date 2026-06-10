@@ -60,7 +60,6 @@ export async function POST(request: NextRequest) {
 
       const validPortalTypes: PortalType[] = [
         PortalType.PNCP,
-        PortalType.COMPRAS_GOV,
       ]
       
       if (!validPortalTypes.includes(type)) {

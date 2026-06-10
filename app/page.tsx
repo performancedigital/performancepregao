@@ -28,8 +28,8 @@ const steps = [
     icon: Bot,
     title: 'Coleta Automática 24/7',
     description:
-      'Nossos robôs monitoram os 19 maiores portais públicos de licitação do Brasil continuamente — PNCP, Compras.gov, BLL e portais municipais — sem nenhuma ação sua.',
-    highlight: '19 portais monitorados',
+      'Monitoramos o PNCP (Portal Nacional de Contratações Públicas) continuamente — a base oficial que reúne licitações federais, estaduais e municipais de todo o Brasil — sem nenhuma ação sua.',
+    highlight: 'Cobertura nacional (PNCP)',
   },
   {
     num: '02',
@@ -345,7 +345,7 @@ export default function LandingPage() {
                     },
                     {
                       title: 'Contratação de Serviços de Limpeza Predial',
-                      portal: 'Compras.gov',
+                      portal: 'PNCP',
                       value: 'R$ 89.000',
                       time: '18h',
                       urgent: true,

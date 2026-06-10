@@ -38,7 +38,6 @@ interface Run {
 
 const ALL_SOURCES = [
   'pncp',
-  'comprasnet',
 ]
 
 function statusColor(status: string) {

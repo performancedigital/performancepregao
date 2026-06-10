@@ -10,11 +10,10 @@ const pageTitles: Record<string, string> = {
   '/dashboard/opportunities': 'Oportunidades',
   '/dashboard/negocios': 'Quadro de Disputas',
   '/dashboard/analise': 'Análise & Relatórios',
-  '/dashboard/juridico': 'Módulo Jurídico',
   '/admin': 'Painel Admin',
   '/admin/users': 'Gestão de Usuários',
   '/admin/portals': 'Portais Monitorados',
-  '/admin/logs': 'Logs do Sistema',
+  '/admin/integrations': 'Integrações',
   '/admin/ai': 'Configuração IA',
 }
 

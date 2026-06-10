@@ -16,7 +16,6 @@ const ETAPAS = {
     nome: 'APIs Públicas (sem credenciais)',
     conectores: [
       'pncp',
-      'comprasnet',
     ]
   }
 }

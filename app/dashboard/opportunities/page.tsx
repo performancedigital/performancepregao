@@ -11,7 +11,6 @@ import { ChevronLeft, ChevronRight, Filter, Search, SlidersHorizontal, X } from 
 const PORTALS = [
   { label: 'Todos', value: '' },
   { label: 'PNCP', value: 'PNCP' },
-  { label: 'Compras.gov', value: 'COMPRAS_GOV' },
 ]
 
 const STATES = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO']
@@ -132,11 +131,7 @@ export default function OpportunitiesPage() {
   const hasActiveFilters = search || portal || state || modality || minValue
 
   function portalDisplay(b: Bidding) {
-    const map: Record<string, string> = { 
-      PNCP: 'PNCP', 
-      COMPRAS_GOV: 'Compras.gov', 
-    }
-    return map[b.portal?.type] ?? b.portal?.name ?? '-'
+    return b.portal?.name ?? b.portal?.type ?? '-'
   }
 
   return (
@@ -242,7 +237,7 @@ export default function OpportunitiesPage() {
             </>
           )}
         </p>
-        <p className="text-slate-600 text-xs">PNCP e Compras.gov</p>
+        <p className="text-slate-600 text-xs">Fonte: PNCP</p>
       </div>
 
       {/* Results grid */}

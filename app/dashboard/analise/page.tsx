@@ -147,13 +147,10 @@ export default function AnalisePage() {
           label: 'Contratos Ganhos',
           value: String(data.byStage['VENCIDO'] || 0),
           sub:
-            data.byStage['VENCIDO'] > 0
-              ? `de ${formatCurrency(
-                  Object.entries(data.byPortal).reduce((sum, [, count]) => {
-                    const avgVal = data.totalValue / (data.savedTotal || 1)
-                    return sum + (data.byStage['VENCIDO'] || 0) > 0 ? avgVal : 0
-                  }, 0)
-                )}`
+            (data.byStage['VENCIDO'] || 0) > 0
+              ? `~${formatCurrency(
+                  (data.totalValue / (data.savedTotal || 1)) * (data.byStage['VENCIDO'] || 0)
+                )} estimado`
               : 'sem vitorias',
           trend: (data.byStage['VENCIDO'] || 0) > 0 ? 'up' : 'neutral',
           icon: BarChart2,

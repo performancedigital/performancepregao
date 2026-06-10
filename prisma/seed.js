@@ -23,11 +23,10 @@ async function ensurePortal(type, name, url, isActive) {
 }
 
 async function main() {
-  // PNCP e a fonte unica e autoritativa (agrega federal + estadual + municipal,
-  // Lei 14.133). ComprasNet/dados-abertos foi desativado: o endpoint legado
-  // retorna vazio e o moderno apenas duplica os dados do PNCP.
+  // PNCP e a fonte unica e autoritativa: agrega licitacoes federais, estaduais e
+  // municipais (Lei 14.133). ComprasNet/dados-abertos foi removido (endpoint
+  // legado vazio; o moderno apenas duplicava o PNCP).
   await ensurePortal('PNCP', 'PNCP', 'https://pncp.gov.br', true)
-  await ensurePortal('COMPRAS_GOV', 'ComprasNet Federal', 'https://dadosabertos.compras.gov.br', false)
 
   await prisma.integrationSource.upsert({
     where: { code: 'pncp' },
@@ -50,30 +49,16 @@ async function main() {
     },
   })
 
-  await prisma.integrationSource.upsert({
-    where: { code: 'comprasnet' },
-    create: {
-      code: 'comprasnet',
-      name: 'ComprasNet Federal',
-      baseUrl: 'https://dadosabertos.compras.gov.br',
-      authType: 'none',
-      rateLimit: 60,
-      supportsIncremental: true,
-      isEnabled: false,
-    },
-    update: {
-      name: 'ComprasNet Federal',
-      baseUrl: 'https://dadosabertos.compras.gov.br',
-      authType: 'none',
-      rateLimit: 60,
-      supportsIncremental: true,
-      isEnabled: false,
-    },
+  // Desativa qualquer outra fonte legada que ainda exista no banco.
+  await prisma.integrationSource.updateMany({
+    where: { code: { not: 'pncp' } },
+    data: { isEnabled: false },
   })
 
-  await prisma.integrationSource.updateMany({
-    where: { code: { notIn: ['pncp', 'comprasnet'] } },
-    data: { isEnabled: false },
+  // Desativa portais que nao sejam PNCP (ex.: COMPRAS_GOV legado).
+  await prisma.portal.updateMany({
+    where: { type: { not: 'PNCP' } },
+    data: { isActive: false },
   })
 }
 
